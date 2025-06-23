@@ -1,4 +1,5 @@
 # computerVisionChallenge
 
-This is the readme for our repo of the copmuter vision challenge in the summer term 2025. 
-authors: Paul Jegen, Moritz Geissler, Martin Muenster, Jonah Driske
+This is the README for our repo of the computer vision challenge in the summer term 2025. 
+
+Authors: Paul Jegen, Moritz Geissler, Martin Muenster, Jonah Driske, Öykü Şevketbeyoğlu
