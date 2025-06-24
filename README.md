@@ -11,4 +11,4 @@ MATLAB R2024b, Image Processing Toolbox, Computer Vision Toolbox
 Authors: Paul Jegen, Moritz Geissler, Martin Muenster, Jonah Driske, Öykü Şevketbeyoğlu
 
 # GUI
-This includes a hint regarding the final packaging of the app. Provide an .mlappinstall file (includes all necessary files). 
+This includes a hint regarding the final packaging of the app. Provide an .mlappinstall file (includes all necessary files). Webapp will also be a part of it. 
