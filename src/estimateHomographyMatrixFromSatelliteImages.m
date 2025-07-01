@@ -1,15 +1,22 @@
-function [H, inlierPts1, inlierPts2] = estimateHomographyMatrixFromSatelliteImages(img1, img2)
+% TODO add some error handling
+
+function [H, inlierPts1, inlierPts2, accuracyScore] = estimateHomographyMatrixFromSatelliteImages(img1, img2)
 % estimateHomographyMatrixFromSatelliteImages
 %   Estimates the homography matrix between two planar satellite images
 %   with different rotation, translation, and lighting conditions.
 %
 % Inputs:
 %   img1, img2 - RGB satellite images
+%   test_accuracy (optional) - return accuracy metric: what percentage of
+%   correspondence points is also inclier points
 %
 % Outputs:
 %   H          - 3x3 homography matrix (maps points from img2 to img1)
 %   inlierPts1 - matched points in img1 (Nx2 array)
 %   inlierPts2 - matched points in img2 (Nx2 array)
+%   accuracyScore - Composite Homography Quality Score of matched 
+%   correspondence points that agree with the calculated homography matrix,
+%   takes amount of points into account
 
     % convert to grayscale
     gray1 = rgb2gray(img1);
@@ -52,4 +59,8 @@ function [H, inlierPts1, inlierPts2] = estimateHomographyMatrixFromSatelliteImag
     % extract inlier points as Nx2 arrays
     inlierPts1 = matchedPts1(inlierIdx).Location;
     inlierPts2 = matchedPts2(inlierIdx).Location;
+
+    % calculate accuracy metric ( Composite Homography Quality Score ) 
+    accuracyScore = length(inlierPts1) / length(matchedPts1) * log(length(matchedPts1) + 1);
+    
 end
