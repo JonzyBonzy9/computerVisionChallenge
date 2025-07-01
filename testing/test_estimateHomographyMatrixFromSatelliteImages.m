@@ -1,4 +1,4 @@
-% import function
+% add src to path
 scriptDir = fileparts(mfilename('fullpath'));
 addpath(fullfile(scriptDir, '..', 'src'));
 

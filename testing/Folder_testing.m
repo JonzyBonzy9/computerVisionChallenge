@@ -1,6 +1,9 @@
-% test function for calling folder
-
+% add src to path
 scriptDir = fileparts(mfilename('fullpath'));
 addpath(fullfile(scriptDir, '..', 'src'));
-path='/Users/pauljegen/Uni/TUM/Semester_2/Computer_Vision/Datasets/Frauenkirche';
+
+% test function for calling folder
+scriptDir = fileparts(mfilename('fullpath'));
+addpath(fullfile(scriptDir, '..', 'src'));
+path=fullfile(scriptDir,'..','data','Datasets','Dubai');
 output=processFolder(path);
