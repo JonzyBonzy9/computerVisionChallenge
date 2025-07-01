@@ -1,2 +1,8 @@
 # ignore data cause 60MB is a lot
 data/
+# ignore all matlab temporary files
+*.asv
+*.fig
+*.mdl.autosave
+*.slxc
+.DS_Store
