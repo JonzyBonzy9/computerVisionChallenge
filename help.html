@@ -43,6 +43,7 @@
     </style>
     <script>
         function closeHelp() {
+            console.log("closeHelp() aufgerufen");
             parent.postMessage({ type: 'closeHelp' }, '*');
         }
     </script>
