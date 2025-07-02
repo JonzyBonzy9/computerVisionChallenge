@@ -15,9 +15,12 @@ function [rel_info_list]=estimateHomographiesSet(imageArray)
         error('Need at least two images to estimate homographies.');
     end
     
-    % TODO add some sorting method here, so that always similar images get compared
-    % idea: calculate image similarity metric and use that (filenames are not
-    % uniquely indexed across datasets)
+    % Sort images by their datetime 'id'
+    ids = cellfun(@(x) x.id, imageArray);
+    [~, sortIdx] = sort(ids);
+    imageArray = imageArray(sortIdx);
+    imageArray = imageArray(sortIdx);
+
 
     % Preallocate cell array for homography matrices
     rel_info_list = cell(numImages - 1, 1);

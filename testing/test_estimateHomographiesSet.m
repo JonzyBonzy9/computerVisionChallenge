@@ -9,11 +9,27 @@ if isempty(fileList)
     error('No image files found.');
 end
 
-% read images into a cell array
+% Read images into a cell array
 imageArray = cell(1, length(fileList));
 for i = 1:length(fileList)
+    % Load image
     imageArray{i}.data = imread(fullfile(fileList(i).folder, fileList(i).name));
-    imageArray{i}.id = fileList(i).name;
+    
+    % Extract filename without extension
+    [~, nameWithoutExt, ~] = fileparts(fileList(i).name);
+   
+    % Try parsing date in two possible formats
+    try
+        dt = datetime(nameWithoutExt, 'InputFormat', 'MM_yyyy');
+    catch
+        try
+            dt = datetime(nameWithoutExt, 'InputFormat', 'yyyy_MM');
+        catch
+            error('Could not parse date from filename: %s', fileList(i).name);
+        end
+    end
+    % Assign datetime as ID
+    imageArray{i}.id = dt;
 end
 
 % get outputs
