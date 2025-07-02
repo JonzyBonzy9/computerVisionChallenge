@@ -7,7 +7,7 @@ img1 = imread(fullfile(scriptDir, '..', 'data','Datasets','Columbia Glacier','12
 img2 = imread(fullfile(scriptDir, '..', 'data','Datasets','Columbia Glacier','12_2020.jpg'));
 
 % estimate homography & get inlier matches
-[H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyMatrixFromSatelliteImages(img1, img2);
+[H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1, img2);
 
 % warp img2 into img1 coordinate system
 outputView = imref2d(size(img1));

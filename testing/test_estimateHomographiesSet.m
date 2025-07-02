@@ -17,7 +17,7 @@ for i = 1:length(fileList)
 end
 
 % get outputs
-output = processFolder(imageArray);
+output = estimateHomographiesSet(imageArray);
 
 % plot results
 for i = 1:length(output)

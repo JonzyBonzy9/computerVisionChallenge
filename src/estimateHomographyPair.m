@@ -1,7 +1,7 @@
 % TODO add some error handling
 
-function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyMatrixFromSatelliteImages(img1, img2)
-% estimateHomographyMatrixFromSatelliteImages
+function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1, img2)
+% estimateHomographyPair
 %   Estimates the homography matrix between two planar satellite images
 %   with different rotation, translation, and lighting conditions.
 %

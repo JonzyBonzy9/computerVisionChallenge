@@ -1,4 +1,4 @@
-function [rel_info_list]=processFolder(imageArray)
+function [rel_info_list]=estimateHomographiesSet(imageArray)
 %   Process all images passed by giving two consecutive images to
 %   'estimateHomographymatrixFromSatelite'. Stores the relative information
 %   between the consecutive images.
@@ -29,7 +29,7 @@ function [rel_info_list]=processFolder(imageArray)
 
         % Estimate homography
         [H, inlierPts1, inlierPts2, inlierRatio] = ...
-            estimateHomographyMatrixFromSatelliteImages(img1, img2);
+            estimateHomographyPair(img1, img2);
         
         % store results
         rel_info_list{i} = struct( ...
