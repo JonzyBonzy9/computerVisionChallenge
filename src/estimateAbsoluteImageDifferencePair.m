@@ -6,10 +6,12 @@ function [mask] = estimateAbsoluteImageDifferencePair(image1, image2, param)
 %   param - struct with fields:
 %       - blockSize: size of aggregation block (e.g., 3)
 %       - diffThreshold: pixel/block difference threshold
-%       - areaSupport: size of local neighborhood for support filtering
+%       - areaSupport: size of local neighborhood batch for support filtering
+%       - minNeighbors: how many neighbors are required to keep pixel
+%       during local neigborhood batch support filtering
 %
 % Output:
-%   mask - binary or continuous mask depending on maskType
+%   mask - mask of differences
 
     arguments
         image1
