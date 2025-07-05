@@ -1,4 +1,4 @@
-function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1, img2, varargin)
+function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyPair(img1, img2, varargin)
 % estimateHomographyPair
 %   Estimates the homography matrix between two planar satellite images
 %   with different rotation, translation, and lighting conditions.
@@ -32,6 +32,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1,
     inlierPts1 = [];
     inlierPts2 = [];
     inlierRatio = 0;
+    success = 1;
 
     % Convert to grayscale
     gray0 = rgb2gray(img1);
@@ -44,6 +45,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1,
     % Check for enough features
     if points1.Count < 2 || points2.Count < 2
         warning('Not enough SURF features detected in one or both images.');
+        success = 0;
         return;
     end
 
@@ -57,6 +59,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1,
     % Check for matches
     if isempty(indexPairs)
         warning('No matched features found between images.');
+        success = 0;
         return;
     end
 
@@ -76,18 +79,32 @@ function [H, inlierPts1, inlierPts2, inlierRatio] = estimateHomographyPair(img1,
     % Check again if enough matches remain
     if matchedPts1.Count < 4
         warning('Not enough valid matched points after masking.');
+        success = 0;
         return;
     end
 
     % Estimate homography with RANSAC
     try
+        % Clear any previous warning state
+        lastwarn('');  
+        
+        % Run RANSAC
         [tform, inlierIdx] = estimateGeometricTransform2D(matchedPts2, matchedPts1, ...
             'projective', ...
             'MaxNumTrials', p.Results.MaxNumTrials, ...
             'Confidence', p.Results.Confidence, ...
             'MaxDistance', p.Results.MaxDistance);
+        
+        % Check for relevant RANSAC warning
+        [warnMsg, ~] = lastwarn;
+        
+        if contains(warnMsg, 'Maximum number of trials reached')
+            warning('RANSAC warning detected: trials limit reached');
+            success = 0;
+        end
     catch ME
-        warning('Homography estimation failed: %s', ME.message);
+        warning('Homography estimation failed');
+        success = 0;
         return;
     end
 
