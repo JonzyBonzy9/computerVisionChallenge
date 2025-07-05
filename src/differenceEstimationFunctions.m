@@ -1,15 +1,24 @@
 classdef differenceEstimationFunctions
-    methods(Static)
-       
+    properties (Constant)
+        % define value ranges etc
+        valid_methods = {'absdiff','gradient','ssim','dog','pca'};
+        value_range_threshold = [0, 1];
+        value_range_blockSize = [1, Inf];
+        value_range_areaMin = [1, Inf];
+        value_range_areaMax = [1, Inf];
+    end
+
+    methods (Static)
         %% ===== process function =====
         function changeMask = process(I1, I2, method, threshold, blockSize, areaMin, areaMax)
+               
             arguments
                 I1
                 I2
                 method (1,:) char {mustBeMember(method, {'absdiff','gradient','ssim','dog','pca'})}
                 threshold (1,1) double = NaN
                 blockSize (1,1) double = 1
-                areaMin (1,1) double = 30
+                areaMin (1,1) double = 1
                 areaMax (1,1) double = Inf
             end
         

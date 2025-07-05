@@ -16,11 +16,10 @@ function [rel_info_list]=estimateHomographiesSet(imageArray)
     end
     
     % Sort images by their datetime 'id'
-    ids = cellfun(@(x) x.id, imageArray);
+    ids = cellfun(@(x) x.id, imageArray, 'UniformOutput', false);
     [~, sortIdx] = sort(ids);
     imageArray = imageArray(sortIdx);
     imageArray = imageArray(sortIdx);
-
 
     % Preallocate cell array for homography matrices
     rel_info_list = cell(numImages - 1, 1);
