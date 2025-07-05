@@ -11,6 +11,7 @@
             padding: 20px;
             line-height: 1.6;
             position: relative;
+            margin: 0;
         }
 
         h1 {
@@ -27,6 +28,7 @@
             font-weight: bold;
             color: #888;
             cursor: pointer;
+            user-select: none;
         }
 
         .close-button:hover {
@@ -43,8 +45,15 @@
     </style>
     <script>
         function closeHelp() {
-            console.log("closeHelp() aufgerufen");
-            parent.postMessage({ type: 'closeHelp' }, '*');
+            try {
+                if (window.parent && typeof window.parent.postMessage === 'function') {
+                    window.matlab.postMessage({ type: 'closeHelp' });
+                } else {
+                    console.error("postMessage nicht verfügbar.");
+                }
+            } catch (e) {
+                console.error("Fehler beim Senden der Nachricht:", e);
+            }
         }
     </script>
 </head>
