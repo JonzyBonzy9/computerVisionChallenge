@@ -69,11 +69,12 @@ classdef TimeSliderView < handle
         end
 
         function update(obj)
-            imshow(obj.App.Images{1}, 'Parent', obj.Axes);
+            imshow(obj.App.imageArray{1}.data, 'Parent', obj.Axes);
 
-            obj.Slider.Limits = [1 length(obj.App.Images)];
-            obj.Slider.MajorTicks = 1:length(obj.App.Images);
-            obj.Slider.MajorTickLabels = cellstr(datestr(obj.App.ImageDates, 'yyyy_mm'));
+            obj.Slider.Limits = [1 length(obj.App.imageArray)];
+            obj.Slider.MajorTicks = 1:length(obj.App.imageArray);
+            dates = cellfun(@(s) s.id, obj.App.imageArray);
+            obj.Slider.MajorTickLabels = cellstr(datestr(dates, 'yyyy_mm'));
             obj.Slider.Value = 1;
         end
     end
@@ -81,11 +82,11 @@ classdef TimeSliderView < handle
     methods (Access = private)
         function sliderValueChanged(obj, src, event)
             idx = round(src.Value);
-            idx = max(1, min(idx, length(obj.App.Images)));
+            idx = max(1, min(idx, length(obj.App.imageArray)));
             src.Value = idx;
 
             % Display image
-            imshow(obj.App.Images{idx}, 'Parent', obj.Axes);
+            imshow(obj.App.imageArray{idx}.data, 'Parent', obj.Axes);
         end
     end
 

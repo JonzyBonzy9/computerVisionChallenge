@@ -71,8 +71,14 @@ classdef utils
             
             % Store in app properties
             app.ImageFiles = validFiles;
-            app.ImageDates = validDates;
-            app.Images = imgs;
+
+            app.imageArray = cell(1, length(validDates));
+
+            for k = 1:length(validDates)
+                imageStruct.data = imgs{k};
+                imageStruct.id = validDates(k);
+                app.imageArray{k} = imageStruct;
+            end
             
             % Inform all views
             viewNames = fieldnames(app.Views);
