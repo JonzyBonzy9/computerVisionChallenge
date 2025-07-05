@@ -1,6 +1,7 @@
 classdef Overlay < handle
     properties (Access = private)
         App             matlab.apps.AppBase
+        dataAvailable
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
