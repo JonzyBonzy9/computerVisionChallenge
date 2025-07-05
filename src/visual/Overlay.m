@@ -11,9 +11,6 @@ classdef Overlay < handle
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
         SizingModeDropdown matlab.ui.control.DropDown
-
-        overlayClass
-
     end
 
     methods
@@ -21,10 +18,6 @@ classdef Overlay < handle
         function obj = Overlay(app)
             addpath(fullfile(pwd, '..'));
             addpath(fullfile(pwd, 'src/overlay'));
-
-            disp(app.imageArray)
-
-            obj.overlayClass = calcOverlay(app.imageArray);
             
             obj.App = app;
             obj.dataAvailable = false;
@@ -88,7 +81,6 @@ classdef Overlay < handle
         function onImLoad(obj)
             % Update panel
             obj.dataAvailable = true;
-            obj.overlayClass.imageArray = obj.App.imageArray;
         end
 
         function show(obj)
@@ -111,7 +103,7 @@ classdef Overlay < handle
             delete(obj.CheckboxGrid.Children);
             obj.Checkboxes = matlab.ui.control.CheckBox.empty;
         
-            imageArray = obj.overlayClass.imageArray;
+            imageArray = obj.App.OverlayClass.imageArray;
             n = length(imageArray);
         
             % One row per checkbox
@@ -120,8 +112,8 @@ classdef Overlay < handle
             % Default: nothing was calculated
             calculatedIdxs = [];
         
-            if ~isempty(obj.overlayClass.lastIndices)
-                calculatedIdxs = obj.overlayClass.lastIndices;
+            if ~isempty(obj.App.OverlayClass.lastIndices)
+                calculatedIdxs = obj.App.OverlayClass.lastIndices;
             end
 
             disp(n)
@@ -163,7 +155,7 @@ classdef Overlay < handle
                 return;
             end
 
-            obj.overlayClass.calculate(selectedIndices);
+            obj.App.OverlayClass.calculate(selectedIndices);
 
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
@@ -176,7 +168,7 @@ classdef Overlay < handle
 
             useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
 
-            overlay = obj.overlayClass.createOverlay(selectedIndices);
+            overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
 
@@ -184,10 +176,10 @@ classdef Overlay < handle
 
         function onCheckboxChanged(obj, idx)
             % Only proceed if we have valid previous data
-            if isempty(obj.overlayClass.lastIndices)
+            if isempty(obj.App.OverlayClass.lastIndices)
                 return;
             end
-            if ~ismember(idx, obj.overlayClass.lastIndices)
+            if ~ismember(idx, obj.App.OverlayClass.lastIndices)
                 return;
             end
             
@@ -195,10 +187,10 @@ classdef Overlay < handle
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
             
             % Keep only those that were used in last calculation
-            validSelection = intersect(selected, obj.overlayClass.lastIndices);
+            validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
             useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
-            overlay = obj.overlayClass.createOverlay(validSelection);  
+            overlay = obj.App.OverlayClass.createOverlay(validSelection);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else

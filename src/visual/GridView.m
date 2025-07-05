@@ -40,7 +40,7 @@ classdef GridView < handle
             % Clear existing content
             delete(obj.Grid.Children);
         
-            numImages = numel(obj.App.imageArray);
+            numImages = numel(obj.App.OverlayClass.imageArray);
         
             % Determine grid size
             numCols = ceil(sqrt(numImages));
@@ -57,10 +57,10 @@ classdef GridView < handle
             % Create axes and display images
             for i = 1:numImages
                 ax = uiaxes(obj.Grid);
-                imshow(obj.App.imageArray{i}.data, 'Parent', ax);
+                imshow(obj.App.OverlayClass.imageArray{i}.data, 'Parent', ax);
                 ax.XTick = [];
                 ax.YTick = [];
-                title(ax, sprintf(datestr(obj.App.imageArray{i}.id, 'mm-yyyy'), i));
+                title(ax, sprintf(datestr(obj.App.OverlayClass.imageArray{i}.id, 'mm-yyyy'), i));
             end
         end
     end

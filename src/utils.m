@@ -30,67 +30,53 @@ classdef utils
             date = datetime(year, month, 1);
         end
 
-        function loadImagesFromFolder(app)
+        function imageArray = loadImagesFromFolder()
             % Ask user to select a folder
             folderPath = uigetdir(pwd, 'Select Folder Containing Images');
             if folderPath == 0
-                % User canceled
-                return
+                imageArray = [];
+                return;
             end
-            
+        
             % Get list of JPG files matching pattern YYYY_MM.jpg
             files = dir(fullfile(folderPath, '*.jpg'));
             
             validFiles = {};
-            validDates = datetime.empty(1,0);
+            validDates = datetime.empty(1, 0);
         
             for k = 1:length(files)
                 fname = files(k).name;
-                
-
                 dt = utils.parseDateFromFilename(fname);
+                if isempty(dt)
+                    continue;
+                end
                 validFiles{end+1} = fullfile(folderPath, fname);
                 validDates(end+1) = dt;
-
             end
-            
+        
             if isempty(validFiles)
-                uialert(app.UIFigure, 'No valid images found with pattern YYYY_MM.jpg', 'No Images');
-                return
+                imageArray = [];
+                imageFiles = [];
+                return;
             end
-            
-            % Sort images by date
+        
+            % Sort by date
             [validDates, sortIdx] = sort(validDates);
             validFiles = validFiles(sortIdx);
-            
-            % Optionally, load images now (or load on demand)
+        
+            % Load images
             imgs = cell(1, length(validFiles));
             for k = 1:length(validFiles)
                 imgs{k} = imread(validFiles{k});
             end
-            
-            % Store in app properties
-            app.ImageFiles = validFiles;
-
-            app.imageArray = cell(1, length(validDates));
-
+        
+            % Create output image array
+            imageArray = cell(1, length(validDates));
             for k = 1:length(validDates)
                 imageStruct.data = imgs{k};
                 imageStruct.id = validDates(k);
-                app.imageArray{k} = imageStruct;
+                imageArray{k} = imageStruct;
             end
-            
-            % Inform all views
-            viewNames = fieldnames(app.Views);
-            for k = 1:numel(viewNames)
-                app.Views.(viewNames{k}).onImLoad();
-            end
-            
-            % Update the currently selected view
-            selected = app.VisualizationStyleDropDown.Value;
-            if isfield(app.Views, selected)
-                app.Views.(selected).update();
-            end   
         end
     end
 end
