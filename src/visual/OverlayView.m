@@ -1,4 +1,4 @@
-classdef Overlay < handle
+classdef OverlayView < handle
     properties (Access = private)
         App             matlab.apps.AppBase
         dataAvailable
@@ -15,7 +15,7 @@ classdef Overlay < handle
 
     methods
         % Constructor
-        function obj = Overlay(app)
+        function obj = OverlayView(app)
             addpath(fullfile(pwd, '..'));
             addpath(fullfile(pwd, 'src/overlay'));
             
