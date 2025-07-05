@@ -1,11 +1,11 @@
-classdef Help < handle
+classdef HelpObject < handle
     properties (Access = private)
         UIFigure
         HelpHTML
     end
 
     methods
-        function obj = Help(UIFigure)
+        function obj = HelpObject(UIFigure)
             % Konstruktor speichert die Referenz zur UIFigure der App
             obj.UIFigure = UIFigure;
         end
