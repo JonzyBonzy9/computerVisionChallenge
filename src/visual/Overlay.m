@@ -185,6 +185,8 @@ classdef Overlay < handle
             transforms{1} = eye(3);
             for i = 2:numTransforms
                 transforms{i} = transforms{i-1} * obj.lastOutput{i-1}.H;
+                % transforms{i} = obj.lastOutput{i-1}.H; % -> use if all
+                % transforms reference to image one already!!
             end
         
             imageArray = obj.App.imageArray(obj.LastCalculatedIndices);
