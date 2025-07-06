@@ -3,4 +3,5 @@ function Views = getViews(app)
     Views.TimeSlider = TimeSliderView(app);
     Views.GridView = GridView(app);
     Views.Overlay = OverlayView(app);
+    Views.Difference = DifferenceView(app);
 end
