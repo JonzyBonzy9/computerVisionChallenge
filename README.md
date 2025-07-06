@@ -20,12 +20,14 @@ This includes a hint regarding the final packaging of the app. Provide an .mlapp
 
 ## Observations
 
+- alignments in general
+  - output of homographie is not deterministic, sometimes fails completely --> this could use some error detection and recalculation
 - How to align a set of images?
   - when computing H only between preseding images, errors accumulate (e.g. if 1 and 2 and 2 and three can be aligned almost perfectly, there is still a considerable error between 1 and 3)
   - much better, if H is computed between 1 and each other image (much more stable), possibly the first image might not be the perfect choice for this.
   - best results probably with a mix of both methods
 
-## imporvements in image alignment
+## improvements in image alignment
 
 - Feature-based matching with robust estimation
   - Use more sophisticated feature detectors like SIFT, SURF, or ORB, which are robust to scale, rotation, and illumination.

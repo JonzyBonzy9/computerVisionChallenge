@@ -1,9 +1,7 @@
-classdef Overlay < handle
+classdef OverlayView < handle
     properties (Access = private)
         App             matlab.apps.AppBase
-        dataAvailable   logical
-        lastOutput
-        LastCalculatedIndices
+        dataAvailable
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
@@ -13,13 +11,14 @@ classdef Overlay < handle
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
         SizingModeDropdown matlab.ui.control.DropDown
-
     end
 
     methods
         % Constructor
-        function obj = Overlay(app)
+        function obj = OverlayView(app)
             addpath(fullfile(pwd, '..'));
+            addpath(fullfile(pwd, 'src/overlay'));
+            
             obj.App = app;
             obj.dataAvailable = false;
         
@@ -64,22 +63,24 @@ classdef Overlay < handle
             obj.AllButton.Layout.Row = 3;
 
             % Create sizing mode dropdown
-        obj.SizingModeDropdown = uidropdown(controlLayout, ...
-            'Items', {'Size to First Image', 'Fit All Images'}, ...
-            'Value', 'Size to First Image', ...
-            'Tooltip', 'Select overlay sizing mode');
-        obj.SizingModeDropdown.Layout.Row = 4;  % Adjust rows below accordingly
+            obj.SizingModeDropdown = uidropdown(controlLayout, ...
+                'Items', {'Size to First Image', 'Fit All Images'}, ...
+                'Value', 'Size to First Image', ...
+                'Tooltip', 'Select overlay sizing mode');
+            obj.SizingModeDropdown.Layout.Row = 4;  % Adjust rows below accordingly
         
             % Create Calculate button
             obj.CalculateButton = uibutton(controlLayout, 'push', ...
                 'Text', 'Calculate Overlay', ...
                 'ButtonPushedFcn', @(btn, evt)obj.calculate());
-            obj.CalculateButton.Layout.Row = 6;            
+            obj.CalculateButton.Layout.Row = 6;
+
+
         end
 
         function onImLoad(obj)
             % Update panel
-            obj.dataAvailable = true;            
+            obj.dataAvailable = true;
         end
 
         function show(obj)
@@ -102,7 +103,7 @@ classdef Overlay < handle
             delete(obj.CheckboxGrid.Children);
             obj.Checkboxes = matlab.ui.control.CheckBox.empty;
         
-            imageArray = obj.App.imageArray;
+            imageArray = obj.App.OverlayClass.imageArray;
             n = length(imageArray);
         
             % One row per checkbox
@@ -111,9 +112,11 @@ classdef Overlay < handle
             % Default: nothing was calculated
             calculatedIdxs = [];
         
-            if ~isempty(obj.LastCalculatedIndices)
-                calculatedIdxs = obj.LastCalculatedIndices;
+            if ~isempty(obj.App.OverlayClass.lastIndices)
+                calculatedIdxs = obj.App.OverlayClass.lastIndices;
             end
+
+            disp(n)
         
             for i = 1:n
                 dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
@@ -144,21 +147,19 @@ classdef Overlay < handle
                 obj.Checkboxes(i).Value = true;
             end
         end
-        function calculate(obj)
-            obj.LastCalculatedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
+        function calculate(obj)            
+            selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
-            imageArray = obj.App.imageArray(obj.LastCalculatedIndices);
-            
-            if numel(imageArray) < 2
+            if length(selectedIndices) < 2
                 uialert(obj.App.UIFigure, 'Please select at least two images.', 'Not enough images');
                 return;
             end
-        
-            % Calculate
-            obj.lastOutput = estimateHomographiesSet(imageArray);
 
+            obj.App.OverlayClass.calculate(selectedIndices);
+
+            % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
-                if ismember(i, obj.LastCalculatedIndices)
+                if ismember(i, selectedIndices)
                     obj.Checkboxes(i).FontColor = [0, 1, 0];  % Blue
                 else
                     obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
@@ -167,89 +168,18 @@ classdef Overlay < handle
 
             useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
 
-            overlay = obj.createOverlay(obj.LastCalculatedIndices, useFirstImageSize);
+            overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
 
         end
-        function overlay = createOverlay(obj, idxs, useFirstImageSize)
-            if nargin < 3
-                useFirstImageSize = true; % default behavior: size to first image
-            end
-        
-            [~, localIdxs] = ismember(idxs, obj.LastCalculatedIndices);
-            numTransforms = length(obj.LastCalculatedIndices);
-        
-            % Initialize transforms
-            transforms = cell(1, numTransforms);
-            transforms{1} = eye(3);
-            for i = 2:numTransforms
-                transforms{i} = transforms{i-1} * obj.lastOutput{i-1}.H;
-                % transforms{i} = obj.lastOutput{i-1}.H; % -> use if all
-                % transforms reference to image one already!!
-            end
-        
-            imageArray = obj.App.imageArray(obj.LastCalculatedIndices);
-        
-            if useFirstImageSize
-                % Reference: first image size (original behavior)
-                refImage = imageArray{1}.data;
-                ref = imref2d(size(refImage));
-            else
-                % Calculate bounding box that fits all warped images
-                allCorners = [];
-                for i = 1:numTransforms
-                    if ~ismember(i, localIdxs)
-                        continue;
-                    end
-                    img = imageArray{i}.data;
-                    [h, w, ~] = size(img);
-                    corners = [1, 1; w, 1; w, h; 1, h];
-                    tform = projective2d(transforms{i});
-                    warpedCorners = transformPointsForward(tform, corners);
-                    allCorners = [allCorners; warpedCorners];
-                end
-                xMin = floor(min(allCorners(:,1)));
-                xMax = ceil(max(allCorners(:,1)));
-                yMin = floor(min(allCorners(:,2)));
-                yMax = ceil(max(allCorners(:,2)));
-        
-                width = xMax - xMin + 1;
-                height = yMax - yMin + 1;
-        
-                ref = imref2d([height, width], [xMin, xMax], [yMin, yMax]);
-            end
-            
-            % Initialize overlay and alpha mask sum
-            overlay = zeros([ref.ImageSize, 3], 'double');
-            alphaMaskSum = zeros(ref.ImageSize);
-            alpha = 0.5;
 
-            for i = 1:numTransforms
-                if ~ismember(i, localIdxs)
-                    continue;
-                end
-                img = imageArray{i}.data;
-                tform = projective2d(transforms{i});
-                warpedImg = imwarp(img, tform, 'OutputView', ref);
-                mask = imwarp(true(size(img,1), size(img,2)), tform, 'OutputView', ref);        
-                
-                warpedImgD = im2double(warpedImg);
-                overlay = overlay + warpedImgD .* alpha .* cat(3, mask, mask, mask);
-                alphaMaskSum = alphaMaskSum + alpha .* mask;
-            end
-        
-            % Normalize and convert
-            alphaMaskSum(alphaMaskSum == 0) = 1;
-            overlay = overlay ./ cat(3, alphaMaskSum, alphaMaskSum, alphaMaskSum);
-            overlay = im2uint8(overlay);
-        end
         function onCheckboxChanged(obj, idx)
             % Only proceed if we have valid previous data
-            if isempty(obj.LastCalculatedIndices)
+            if isempty(obj.App.OverlayClass.lastIndices)
                 return;
             end
-            if ~ismember(idx, obj.LastCalculatedIndices)
+            if ~ismember(idx, obj.App.OverlayClass.lastIndices)
                 return;
             end
             
@@ -257,10 +187,10 @@ classdef Overlay < handle
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
             
             % Keep only those that were used in last calculation
-            validSelection = intersect(selected, obj.LastCalculatedIndices);            
+            validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
             useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
-            overlay = obj.createOverlay(validSelection, useFirstImageSize);
+            overlay = obj.App.OverlayClass.createOverlay(validSelection);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else
