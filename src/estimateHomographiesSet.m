@@ -59,43 +59,58 @@ classdef estimateHomographiesSet
         
             % Estimate all homographies and assign scores
             for i = 1:numImages
-                for j = 1:numImages
+                for j = i+1:numImages
                     img1 = imageArray{i}.data; % Get data for the first image
                     img2 = imageArray{j}.data; % Get data for the second image
-                    
-                    % Attempt to estimate homography with the first set of parameters
-                    [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, 'MetricThreshold', 1000, 'MaxRatio', 0.7, 'MaxNumTrials', 5000, 'Confidence', 99.0, 'MaxDistance', 6);
-                    % If unsuccessful, try the second set of parameters
-                    if ~success
-                        [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, 'MetricThreshold', 700,  'MaxRatio', 0.8, 'MaxNumTrials', 7000, 'Confidence', 98.0, 'MaxDistance', 8);
-                    end
-                    % If still unsuccessful, try the third set of parameters
-                    if ~success
-                        [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, 'MetricThreshold', 500,  'MaxRatio', 0.9, 'MaxNumTrials', 10000,'Confidence', 95.0, 'MaxDistance', 12);
-                    end
-                    % Calculate score based on inlier ratio if successful
-                    if success
-                        rawScore = 50 * inlierRatio + numel(inlierPts1); % Calculate raw score
-                        score = 1/rawScore; % Calculate final score
+                    if i ~= j
+                        % Attempt to estimate homography with the first set of parameters (strict for city/urban scenes)
+                        [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                            'MetricThreshold', 800, 'MaxRatio', 0.6, 'MaxNumTrials', 8000, 'Confidence', 99.0, 'MaxDistance', 5);
+                        
+                        % If unsuccessful, try the second set of parameters (moderate for nature/vegetation)
+                        if ~success
+                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                                'MetricThreshold', 600, 'MaxRatio', 0.75, 'MaxNumTrials', 12000, 'Confidence', 97.0, 'MaxDistance', 7);
+                        end
+                        
+                        % If still unsuccessful, try the third set of parameters (lenient fallback)
+                        if ~success
+                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                                'MetricThreshold', 400, 'MaxRatio', 0.85, 'MaxNumTrials', 20000, 'Confidence', 95.0, 'MaxDistance', 10);
+                        end
+                        % Calculate score based on inlier ratio if successful
+                        if success
+                            rawScore = (70 * inlierRatio) + log(1 + numel(inlierPts1)); % Calculate raw score
+                            score = 1/rawScore; % Calculate final score
+                        else
+                            score = inf; % Assign high score if ransac is unsuccessful
+                        end
                     else
-                        score = inf; % Assign infinite score if unsuccessful
+                        H = eye(3);
+                        score = 0;
                     end
+
                     scores(end+1) = score; % Store score
                     id1s{end+1} = imageArray{i}.id; % Store first image ID
                     id2s{end+1} = imageArray{j}.id; % Store second image ID
                     Hs{end+1} = H; % Store homography
+
+                    % store inverse
+                    id1s{end+1} = imageArray{j}.id;
+                    id2s{end+1} = imageArray{i}.id;
+                    scores(end+1) = score;
+                    Hs{end+1} = inv(H); 
                 end
             end
             
-            scoreThreshold = 100; % Define score threshold for optimal path
             startId = all_ids(1); % Set starting ID
             rel_info_list = {}; % Initialize relative information list
             
             % Loop through all unique IDs to find optimal paths
             for x = 2:length(all_ids)
                 endId = all_ids(x); % Set ending ID
-                [~, path_Hs, success,totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId, scoreThreshold);
-                if success
+                [~, path_Hs, status,totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId);
+                if status
                     M = eye(3); % Initialize transformation matrix as identity
                     for i = length(path_Hs):-1:1
                         M = M * path_Hs{i}; % Accumulate homographies
@@ -116,11 +131,15 @@ end
 
 
 
-function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId, scoreThreshold)
+function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId)
     % Default no path found status
     status = 0;
+    totalScore = inf;
+    optimalpath = [];
+    pathInfoMatrices = [];
 
     % Filter edges based on threshold
+    scoreThreshold = 1000;
     validEdges = scores <= scoreThreshold;
     filteredId1s = string(id1s(validEdges));
     filteredId2s = string(id2s(validEdges));
@@ -190,4 +209,44 @@ function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWi
     end
 
     status = 1;  % success
+
+
+    % Debug: Display graph details
+    disp('--- GRAPH NODES ---');
+    disp(G.Nodes);
+    
+    disp('--- GRAPH EDGES ---');
+    disp(G.Edges);
+    
+    disp('--- Filtered Edges Info ---');
+    for i = 1:length(filteredId1s)
+        fprintf('Edge: %s -> %s | Score: %.2f\n', ...
+            filteredId1s(i), filteredId2s(i), filteredScores(i));
+    end
+    
+    % Optional: display info matrix sizes
+    disp('--- Info Matrix Sizes ---');
+    for i = 1:length(filteredInfo)
+        sz = size(filteredInfo{i});
+        fprintf('Edge %s -> %s: [%d x %d]\n', ...
+            filteredId1s(i), filteredId2s(i), sz(1), sz(2));
+    end
+    
+    % Plot the graph
+    figure;
+    p = plot(G, ...
+        'Layout', 'force', ...
+        'EdgeLabel', G.Edges.Weight, ...
+        'NodeLabel', G.Nodes.Name);
+    title('Filtered Graph with Edge Weights');
+    
+    % Highlight start and end nodes
+    highlight(p, startId, 'NodeColor', 'green', 'MarkerSize', 8);
+    highlight(p, endId, 'NodeColor', 'red', 'MarkerSize', 8);
+    
+    % If optimal path is found, highlight it
+    if exist('optimalPath', 'var') && ~isempty(optimalPath)
+        highlight(p, optimalPath, 'EdgeColor', 'r', 'LineWidth', 2);
+    end
+
 end

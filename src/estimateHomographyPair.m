@@ -117,4 +117,23 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Calculate inlierRatio
     inlierRatio = length(inlierPts1)/length(matchedPts1);
+
+    % test for success
+    % Test for projective distortion (Z-axis tilt)
+    perspectiveDistortion = norm(H(3,1:2));
+    if perspectiveDistortion > 750  % Adjust based on real data
+        success = 0;  % Penalize or reject
+    end
+    % Reject degenerate homographies
+    if rank(H) < 3
+        success = 0;
+    end
+    % test for ill conditioned H
+    if cond(H) > 5e5
+        success = 0;
+    end
+    % test for inlierratio and stuff
+    if inlierRatio <= 0.1 && length(inlierPts1) <= 6
+        success = 0;  % Reject
+    end
 end
