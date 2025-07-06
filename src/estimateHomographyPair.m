@@ -117,23 +117,44 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Calculate inlierRatio
     inlierRatio = length(inlierPts1)/length(matchedPts1);
-
-    % test for success
-    % Test for projective distortion (Z-axis tilt)
-    perspectiveDistortion = norm(H(3,1:2));
-    if perspectiveDistortion > 750  % Adjust based on real data
-        success = 0;  % Penalize or reject
+    
+    % ============== test for success ================
+    H_norm = H / H(3,3);
+    % Shape distortion test via unit square transform ---------------
+    square = [0 0; 1 0; 1 1; 0 1];
+    transformedSquare = transformPointsForward(projective2d(H_norm'), square);
+    width1 = norm(transformedSquare(2,:) - transformedSquare(1,:));
+    width2 = norm(transformedSquare(3,:) - transformedSquare(4,:));
+    height1 = norm(transformedSquare(4,:) - transformedSquare(1,:));
+    height2 = norm(transformedSquare(3,:) - transformedSquare(2,:));
+    avgWidth = (width1 + width2) / 2;
+    avgHeight = (height1 + height2) / 2;
+    aspectRatio = max(avgWidth, avgHeight) / min(avgWidth, avgHeight);
+    if aspectRatio > 3  % Reject if distorted too much
+        success = 0;
+        return;
     end
-    % Reject degenerate homographies
+    % Test for projective distortion (Z-axis tilt) ---------------
+    perspectiveDistortion = norm(H_norm(1:2,3));  % Check 3rd column, first two rows
+    if perspectiveDistortion > 0.002
+        success = 0; 
+        return;
+    end
+    % Reject degenerate homographies --------------------- 
     if rank(H) < 3
         success = 0;
+        return;
     end
-    % test for ill conditioned H
-    if cond(H) > 5e5
+    % test for ill conditioned H --------------------------------
+    if cond(H) > 2e6
         success = 0;
+        return;
     end
-    % test for inlierratio and stuff
+    % test for inlierratio and stuff ---------------------------
     if inlierRatio <= 0.1 && length(inlierPts1) <= 6
         success = 0;  % Reject
+        return;
     end
+
+
 end

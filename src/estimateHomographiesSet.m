@@ -63,24 +63,25 @@ classdef estimateHomographiesSet
                     img1 = imageArray{i}.data; % Get data for the first image
                     img2 = imageArray{j}.data; % Get data for the second image
                     if i ~= j
-                        % Attempt to estimate homography with the first set of parameters (strict for city/urban scenes)
+                        % Attempt to estimate homography with the first set of parameters (strictest)
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                            'MetricThreshold', 800, 'MaxRatio', 0.6, 'MaxNumTrials', 8000, 'Confidence', 99.0, 'MaxDistance', 5);
+                            'MetricThreshold', 1000, 'MaxRatio', 0.7, 'MaxNumTrials', 25000, 'Confidence', 99.0, 'MaxDistance', 6);
                         
-                        % If unsuccessful, try the second set of parameters (moderate for nature/vegetation)
+                        % If unsuccessful, try the second set (moderate looseness)
                         if ~success
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 600, 'MaxRatio', 0.75, 'MaxNumTrials', 12000, 'Confidence', 97.0, 'MaxDistance', 7);
+                                'MetricThreshold', 700, 'MaxRatio', 0.72, 'MaxNumTrials', 30000, 'Confidence', 98.5, 'MaxDistance', 7);
                         end
                         
-                        % If still unsuccessful, try the third set of parameters (lenient fallback)
+                        % If still unsuccessful, try the third set (more tolerant)
                         if ~success
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 400, 'MaxRatio', 0.85, 'MaxNumTrials', 20000, 'Confidence', 95.0, 'MaxDistance', 10);
+                                'MetricThreshold', 500, 'MaxRatio', 0.75, 'MaxNumTrials', 35000, 'Confidence', 97.0, 'MaxDistance', 8);
                         end
+
                         % Calculate score based on inlier ratio if successful
                         if success
-                            rawScore = (70 * inlierRatio) + log(1 + numel(inlierPts1)); % Calculate raw score
+                            rawScore = (70 * inlierRatio) + numel(inlierPts1); % Calculate raw score
                             score = 1/rawScore; % Calculate final score
                         else
                             score = inf; % Assign high score if ransac is unsuccessful
@@ -109,7 +110,7 @@ classdef estimateHomographiesSet
             % Loop through all unique IDs to find optimal paths
             for x = 2:length(all_ids)
                 endId = all_ids(x); % Set ending ID
-                [~, path_Hs, status,totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId);
+                [~, path_Hs, status,totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId, true);
                 if status
                     M = eye(3); % Initialize transformation matrix as identity
                     for i = length(path_Hs):-1:1
@@ -131,7 +132,7 @@ end
 
 
 
-function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId)
+function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId,displayDebugGraph)
     % Default no path found status
     status = 0;
     totalScore = inf;
@@ -209,44 +210,44 @@ function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWi
     end
 
     status = 1;  % success
-
-
-    % Debug: Display graph details
-    disp('--- GRAPH NODES ---');
-    disp(G.Nodes);
     
-    disp('--- GRAPH EDGES ---');
-    disp(G.Edges);
-    
-    disp('--- Filtered Edges Info ---');
-    for i = 1:length(filteredId1s)
-        fprintf('Edge: %s -> %s | Score: %.2f\n', ...
-            filteredId1s(i), filteredId2s(i), filteredScores(i));
+    if displayDebugGraph
+        % Debug: Display graph details
+        disp('--- GRAPH NODES ---');
+        disp(G.Nodes);
+        
+        disp('--- GRAPH EDGES ---');
+        disp(G.Edges);
+        
+        disp('--- Filtered Edges Info ---');
+        for i = 1:length(filteredId1s)
+            fprintf('Edge: %s -> %s | Score: %.2f\n', ...
+                filteredId1s(i), filteredId2s(i), filteredScores(i));
+        end
+        
+        % Optional: display info matrix sizes
+        disp('--- Info Matrix Sizes ---');
+        for i = 1:length(filteredInfo)
+            sz = size(filteredInfo{i});
+            fprintf('Edge %s -> %s: [%d x %d]\n', ...
+                filteredId1s(i), filteredId2s(i), sz(1), sz(2));
+        end
+        
+        % Plot the graph
+        figure;
+        p = plot(G, ...
+            'Layout', 'force', ...
+            'EdgeLabel', G.Edges.Weight, ...
+            'NodeLabel', G.Nodes.Name);
+        title('Filtered Graph with Edge Weights');
+        
+        % Highlight start and end nodes
+        highlight(p, startId, 'NodeColor', 'green', 'MarkerSize', 8);
+        highlight(p, endId, 'NodeColor', 'red', 'MarkerSize', 8);
+        
+        % If optimal path is found, highlight it
+        if exist('optimalPath', 'var') && ~isempty(optimalPath)
+            highlight(p, optimalPath, 'EdgeColor', 'r', 'LineWidth', 2);
+        end
     end
-    
-    % Optional: display info matrix sizes
-    disp('--- Info Matrix Sizes ---');
-    for i = 1:length(filteredInfo)
-        sz = size(filteredInfo{i});
-        fprintf('Edge %s -> %s: [%d x %d]\n', ...
-            filteredId1s(i), filteredId2s(i), sz(1), sz(2));
-    end
-    
-    % Plot the graph
-    figure;
-    p = plot(G, ...
-        'Layout', 'force', ...
-        'EdgeLabel', G.Edges.Weight, ...
-        'NodeLabel', G.Nodes.Name);
-    title('Filtered Graph with Edge Weights');
-    
-    % Highlight start and end nodes
-    highlight(p, startId, 'NodeColor', 'green', 'MarkerSize', 8);
-    highlight(p, endId, 'NodeColor', 'red', 'MarkerSize', 8);
-    
-    % If optimal path is found, highlight it
-    if exist('optimalPath', 'var') && ~isempty(optimalPath)
-        highlight(p, optimalPath, 'EdgeColor', 'r', 'LineWidth', 2);
-    end
-
 end
