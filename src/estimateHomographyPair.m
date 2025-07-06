@@ -20,11 +20,11 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Parse optional parameters with defaults
     p = inputParser;
-    addParameter(p, 'MetricThreshold', 500, @(x) isnumeric(x) && isscalar(x));
-    addParameter(p, 'MaxRatio', 0.6, @(x) isnumeric(x) && isscalar(x) && x > 0 && x < 1);
-    addParameter(p, 'MaxNumTrials', 2000, @(x) isnumeric(x) && isscalar(x));
-    addParameter(p, 'Confidence', 99.9, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 100);
-    addParameter(p, 'MaxDistance', 4, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'MetricThreshold', 1000, @(x) isnumeric(x) && isscalar(x));
+    addParameter(p, 'MaxRatio', 0.7, @(x) isnumeric(x) && isscalar(x) && x > 0 && x < 1);
+    addParameter(p, 'MaxNumTrials', 5000, @(x) isnumeric(x) && isscalar(x));
+    addParameter(p, 'Confidence', 99.0, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 100);
+    addParameter(p, 'MaxDistance', 6, @(x) isnumeric(x) && isscalar(x) && x > 0);
     parse(p, varargin{:});
 
     % Initialize outputs in case of failure
@@ -77,7 +77,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     matchedPts2 = matchedPts2(validMask);
 
     % Check again if enough matches remain
-    if matchedPts1.Count < 4
+    if matchedPts1.Count < 10
         warning('Not enough valid matched points after masking.');
         success = 0;
         return;

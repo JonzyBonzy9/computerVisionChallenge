@@ -26,7 +26,7 @@ classdef calcOverlay < handle
         end
         function obj = calculate(obj, idxs)
             obj.lastIndices = idxs;
-            obj.homographieSuccesive();
+            obj.homographieGraphBased();
             obj.warp();
             obj.resultAvailable = true;
         end
@@ -71,7 +71,7 @@ classdef calcOverlay < handle
     methods (Access = private)
         function homographieSuccesive(obj)
             filteredImages = obj.imageArray(obj.lastIndices);
-            obj.lastOutput = estimateHomographiesSet(filteredImages);
+            obj.lastOutput = estimateHomographiesSet.estimateHomographiesSuccessive(filteredImages);
 
             obj.transforms = cell(1, length(filteredImages));
             obj.transforms{1} = eye(3);
@@ -81,6 +81,20 @@ classdef calcOverlay < handle
                 % transforms reference to image one already!!
             end
         end
+
+        function homographieGraphBased(obj)
+            filteredImages = obj.imageArray(obj.lastIndices);
+            obj.lastOutput = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages);
+
+            obj.transforms = cell(1, length(filteredImages));
+            obj.transforms{1} = eye(3);
+            for i = 2:length(filteredImages)
+                % obj.transforms{i} = obj.transforms{i-1} * obj.lastOutput{i-1}.H;
+                obj.transforms{i} = obj.lastOutput{i-1}.H; % -> use if all
+                % transforms reference to image one already!!
+            end
+        end
+
         function warp(obj)
             filteredImages = obj.imageArray(obj.lastIndices);
             numTransforms = length(obj.lastIndices);

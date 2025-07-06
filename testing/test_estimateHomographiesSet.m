@@ -33,7 +33,7 @@ for i = 1:length(fileList)
 end
 
 % get outputs
-output = estimateHomographiesSet(imageArray);
+output = estimateHomographiesSet.estimateHomographiesSuccessive(imageArray);
 
 % plot results
 for i = 1:length(output)
