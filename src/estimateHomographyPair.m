@@ -75,7 +75,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check for enough features
     if points1.Count < 4 || points2.Count < 4
-        warning('Not enough features detected in one or both images.');
+        disp('Not enough features detected in one or both images.');
         success = 0;
         return;
     end
@@ -89,7 +89,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check for matches
     if isempty(indexPairs)
-        warning('No matched features found between images.');
+        disp('No matched features found between images.');
         success = 0;
         return;
     end
@@ -109,7 +109,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check again if enough matches remain
     if matchedPts1.Count < 4
-        warning('Not enough valid matched points after masking.');
+        disp('Not enough valid matched points after masking.');
         success = 0;
         return;
     end
@@ -130,11 +130,11 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
         [warnMsg, ~] = lastwarn;
         
         if contains(warnMsg, 'Maximum number of trials reached')
-            warning('RANSAC warning detected: trials limit reached');
+            disp('RANSAC warning detected: trials limit reached');
             success = 0;
         end
     catch ME
-        warning('Homography estimation failed');
+        disp('Homography estimation failed');
         success = 0;
         return;
     end
@@ -168,7 +168,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     end
     % Test for projective distortion (Z-axis tilt) ---------------
     perspectiveDistortion = norm(H_norm(1:2,3));  % Check 3rd column, first two rows
-    if perspectiveDistortion > 0.0002
+    if perspectiveDistortion > 0.0001
         success = 0; 
         fprintf("Projective distortion too high: %.6f\n", perspectiveDistortion);
         return;
@@ -186,7 +186,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
         return;
     end
     % test for inlierratio and stuff ---------------------------
-    if inlierRatio <= 0.1 && length(inlierPts1) <= 6
+    if inlierRatio <= 0.1 && length(inlierPts1) <= 5
         success = 0;  % Reject
         fprintf("Poor inlier ratio (%.2f) with too few inliers (%d)\n", inlierRatio, length(inlierPts1));
         return;
