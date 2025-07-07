@@ -26,6 +26,9 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     addParameter(p, 'Confidence', 99.0, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 100);
     addParameter(p, 'MaxDistance', 6, @(x) isnumeric(x) && isscalar(x) && x > 0);
     parse(p, varargin{:});
+    
+    % set seed
+    rng(42);
 
     % Initialize outputs in case of failure
     H = eye(3);
@@ -130,13 +133,13 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     avgWidth = (width1 + width2) / 2;
     avgHeight = (height1 + height2) / 2;
     aspectRatio = max(avgWidth, avgHeight) / min(avgWidth, avgHeight);
-    if aspectRatio > 3  % Reject if distorted too much
+    if aspectRatio > 1.3  % Reject if distorted too much
         success = 0;
         return;
     end
     % Test for projective distortion (Z-axis tilt) ---------------
     perspectiveDistortion = norm(H_norm(1:2,3));  % Check 3rd column, first two rows
-    if perspectiveDistortion > 0.002
+    if perspectiveDistortion > 0.0002
         success = 0; 
         return;
     end

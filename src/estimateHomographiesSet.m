@@ -65,18 +65,18 @@ classdef estimateHomographiesSet
                     if i ~= j
                         % Attempt to estimate homography with the first set of parameters (strictest)
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                            'MetricThreshold', 1000, 'MaxRatio', 0.7, 'MaxNumTrials', 25000, 'Confidence', 99.0, 'MaxDistance', 6);
+                            'MetricThreshold', 1000, 'MaxRatio', 0.65, 'MaxNumTrials', 30000, 'Confidence', 98.0, 'MaxDistance', 6);
                         
                         % If unsuccessful, try the second set (moderate looseness)
                         if ~success
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 700, 'MaxRatio', 0.72, 'MaxNumTrials', 30000, 'Confidence', 98.5, 'MaxDistance', 7);
+                                'MetricThreshold', 700, 'MaxRatio', 0.68, 'MaxNumTrials', 35000, 'Confidence', 97.0, 'MaxDistance', 7);
                         end
                         
                         % If still unsuccessful, try the third set (more tolerant)
                         if ~success
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 500, 'MaxRatio', 0.75, 'MaxNumTrials', 35000, 'Confidence', 97.0, 'MaxDistance', 8);
+                                'MetricThreshold', 500, 'MaxRatio', 0.71, 'MaxNumTrials', 40000, 'Confidence', 96.0, 'MaxDistance', 8);
                         end
 
                         % Calculate score based on inlier ratio if successful
