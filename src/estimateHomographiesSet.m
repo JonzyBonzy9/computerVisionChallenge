@@ -48,6 +48,9 @@ classdef estimateHomographiesSet
         %
         % Output Arguments:
         %     rel_info_list - list of relative homographies and their scores
+            
+            % turn off all warnings for debugging purposes
+            warning('off', 'all')
         
             numImages = length(imageArray); % Get the number of images
             all_ids = unique(cellfun(@(x) x.id, imageArray)); % Extract unique image IDs
@@ -63,21 +66,38 @@ classdef estimateHomographiesSet
                     img1 = imageArray{i}.data; % Get data for the first image
                     img2 = imageArray{j}.data; % Get data for the second image
                     if i ~= j
+                        fprintf("------- comparing %s to %s -------\n",string(imageArray{i}.id),string(imageArray{j}.id))
                         % Attempt to estimate homography with the first set of parameters (strictest)
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                            'MetricThreshold', 1000, 'MaxRatio', 0.65, 'MaxNumTrials', 30000, 'Confidence', 98.0, 'MaxDistance', 6);
+                            'FeatureExtractionMethod',"SURF",'MetricThreshold', 1000, 'MaxRatio', 0.65, 'MaxNumTrials', 30000, 'Confidence', 98.0, 'MaxDistance', 6);
                         
-                        % If unsuccessful, try the second set (moderate looseness)
                         if ~success
+                            disp('SURF failed. Trying SIFT fallback...\n');
+                            
+                            % Attempt with SIFT fallback
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 700, 'MaxRatio', 0.68, 'MaxNumTrials', 35000, 'Confidence', 97.0, 'MaxDistance', 7);
+                                'FeatureExtractionMethod', "SIFT", ...
+                                'ContrastThreshold', 0.01, ... 
+                                'EdgeThreshold', 10, ...
+                                'NumLayersInOctave', 3, ...
+                                'Sigma', 1.6, ...
+                                'MaxRatio', 0.65, ...
+                                'MaxNumTrials', 30000, ...
+                                'Confidence', 98.0, ...
+                                'MaxDistance', 6);
                         end
-                        
-                        % If still unsuccessful, try the third set (more tolerant)
-                        if ~success
-                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'MetricThreshold', 500, 'MaxRatio', 0.71, 'MaxNumTrials', 40000, 'Confidence', 96.0, 'MaxDistance', 8);
-                        end
+
+                        % % If unsuccessful, try the second set (moderate looseness)
+                        % if ~success
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod',"SURF",'MetricThreshold', 700, 'MaxRatio', 0.68, 'MaxNumTrials', 35000, 'Confidence', 97.0, 'MaxDistance', 7);
+                        % end
+                        % 
+                        % % If still unsuccessful, try the third set (more tolerant)
+                        % if ~success
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod',"SURF",'MetricThreshold', 500, 'MaxRatio', 0.71, 'MaxNumTrials', 40000, 'Confidence', 96.0, 'MaxDistance', 8);
+                        % end
 
                         % Calculate score based on inlier ratio if successful
                         if success
@@ -213,26 +233,6 @@ function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWi
     
     if displayDebugGraph
         % Debug: Display graph details
-        disp('--- GRAPH NODES ---');
-        disp(G.Nodes);
-        
-        disp('--- GRAPH EDGES ---');
-        disp(G.Edges);
-        
-        disp('--- Filtered Edges Info ---');
-        for i = 1:length(filteredId1s)
-            fprintf('Edge: %s -> %s | Score: %.2f\n', ...
-                filteredId1s(i), filteredId2s(i), filteredScores(i));
-        end
-        
-        % Optional: display info matrix sizes
-        disp('--- Info Matrix Sizes ---');
-        for i = 1:length(filteredInfo)
-            sz = size(filteredInfo{i});
-            fprintf('Edge %s -> %s: [%d x %d]\n', ...
-                filteredId1s(i), filteredId2s(i), sz(1), sz(2));
-        end
-        
         % Plot the graph
         figure;
         p = plot(G, ...
