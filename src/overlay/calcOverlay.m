@@ -126,9 +126,7 @@ classdef calcOverlay < handle
             obj.transforms = cell(1, length(filteredImages));
             obj.transforms{1} = eye(3);
             for i = 2:length(filteredImages)
-                % obj.transforms{i} = obj.transforms{i-1} * obj.lastOutput{i-1}.H;
-                obj.transforms{i} = obj.lastOutput{i-1}.H; % -> use if all
-                % transforms reference to image one already!!
+                obj.transforms{i} = obj.lastOutput{i-1}.H;
             end
         end
 

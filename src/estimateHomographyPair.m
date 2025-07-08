@@ -17,7 +17,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 %   inlierPts1    - matched inlier points in img1 (Nx2 array)
 %   inlierPts2    - matched inlier points in img2 (Nx2 array)
 %   inlierRatio   - ratio of inlier points / matched points
-
+    
     % Parse optional parameters with defaults
     p = inputParser;
     % get method
@@ -34,6 +34,8 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     addParameter(p, 'MaxNumTrials', 5000, @(x) isnumeric(x) && isscalar(x));
     addParameter(p, 'Confidence', 99.0, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 100);
     addParameter(p, 'MaxDistance', 6, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    % p.Results.dispfunc if passed
+    addParameter(p, 'dispfunc', @fprintf);
     % parse
     parse(p, varargin{:});
     
@@ -52,7 +54,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     gray1 = rgb2gray(img2);
     
     % extract features
-    fprintf("Estimating homographies using %s\n", p.Results.FeatureExtractionMethod);
+    p.Results.dispfunc("Estimating homographies using %s\n", p.Results.FeatureExtractionMethod);
     switch upper(p.Results.FeatureExtractionMethod)
         case "SURF"
             points1 = detectSURFFeatures(gray0, 'MetricThreshold', p.Results.MetricThreshold);
@@ -75,7 +77,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check for enough features
     if points1.Count < 4 || points2.Count < 4
-        disp('Not enough features detected in one or both images.');
+        p.Results.dispfunc('Not enough features detected in one or both images.');
         success = 0;
         return;
     end
@@ -89,7 +91,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check for matches
     if isempty(indexPairs)
-        disp('No matched features found between images.');
+        p.Results.dispfunc('No matched features found between images.');
         success = 0;
         return;
     end
@@ -109,7 +111,7 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
 
     % Check again if enough matches remain
     if matchedPts1.Count < 4
-        disp('Not enough valid matched points after masking.');
+        p.Results.dispfunc('Not enough valid matched points after masking.');
         success = 0;
         return;
     end
@@ -130,11 +132,11 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
         [warnMsg, ~] = lastwarn;
         
         if contains(warnMsg, 'Maximum number of trials reached')
-            disp('RANSAC warning detected: trials limit reached');
+            p.Results.dispfunc('RANSAC warning detected: trials limit reached');
             success = 0;
         end
     catch ME
-        disp('Homography estimation failed');
+        p.Results.dispfunc('Homography estimation failed');
         success = 0;
         return;
     end
@@ -149,6 +151,10 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     % Calculate inlierRatio
     inlierRatio = length(inlierPts1)/length(matchedPts1);
     
+    p.Results.dispfunc("inlier ratio (%.2f) and #inliers (%d), checking integrity of H...\n", inlierRatio, length(inlierPts1));
+
+        
+
     % ============== test for success ================
     H_norm = H / H(3,3);
     % Shape distortion test via unit square transform ---------------
@@ -163,34 +169,34 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
     aspectRatio = max(avgWidth, avgHeight) / min(avgWidth, avgHeight);
     if aspectRatio > 1.3  % Reject if distorted too much
         success = 0;
-        fprintf("unit square test failed with aspectRatio %.02f\n",aspectRatio)
+        p.Results.dispfunc("unit square test failed with aspectRatio %.02f\n",aspectRatio)
         return;
     end
     % Test for projective distortion (Z-axis tilt) ---------------
     perspectiveDistortion = norm(H_norm(1:2,3));  % Check 3rd column, first two rows
     if perspectiveDistortion > 0.0001
         success = 0; 
-        fprintf("Projective distortion too high: %.6f\n", perspectiveDistortion);
+        p.Results.dispfunc("Projective distortion too high: %.6f\n", perspectiveDistortion);
         return;
     end
     % Reject degenerate homographies --------------------- 
     if rank(H) < 3
         success = 0;
-        fprintf("Homography matrix is degenerate (rank %d)\n", rank(H));
+        p.Results.dispfunc("Homography matrix is degenerate (rank %d)\n", rank(H));
         return;
     end
     % test for ill conditioned H --------------------------------
     if cond(H) > 2e6
         success = 0;
-        fprintf("Homography matrix is ill-conditioned (condition number %.2e)\n", cond(H));
+        p.Results.dispfunc("Homography matrix is ill-conditioned (condition number %.2e)\n", cond(H));
         return;
     end
     % test for inlierratio and stuff ---------------------------
     if inlierRatio <= 0.1 && length(inlierPts1) <= 5
         success = 0;  % Reject
-        fprintf("Poor inlier ratio (%.2f) with too few inliers (%d)\n", inlierRatio, length(inlierPts1));
+        p.Results.dispfunc("Poor inlier ratio (%.2f) with too few inliers (%d)\n", inlierRatio, length(inlierPts1));
         return;
     end
 
-    fprintf("successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts1));
+    p.Results.dispfunc("successful calculation\n");
 end

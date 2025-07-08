@@ -31,14 +31,10 @@ classdef estimateHomographiesSet
         
                 % Estimate homography
                 [H, inlierPts1, inlierPts2, inlierRatio, success] = ...
-                    estimateHomographyPair(img1, img2);
-                if success
-                    rawScore = (70 * inlierRatio) + numel(inlierPts1); % Calculate raw score
-                    score = 1/rawScore; % Calculate final score
-                    dispfunc("successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts1));
-                else
-                    score = inf; % Assign high score if ransac is unsuccessful
-                end
+                    estimateHomographyPair(img1, img2,'dispfunc',dispfunc);
+                
+                % get score
+                score = calcScore(inlierRatio,inlierPts1,success,dispfunc);
         
                 % store results
                 rel_info_list{i} = struct( ...
@@ -75,7 +71,8 @@ classdef estimateHomographiesSet
             id1s = {}; % Initialize first image IDs array
             id2s = {}; % Initialize second image IDs array
             Hs = {}; % Initialize homographies array 
-        
+            scoreMatrix = inf(numImages);    % or NaN to indicate no data
+
             % Estimate all homographies and assign scores
             for i = 1:numImages
                 for j = i+1:numImages
@@ -84,97 +81,93 @@ classdef estimateHomographiesSet
                     if i ~= j
                         dispfunc("------- comparing %s to %s -------\n",string(imageArray{i}.id),string(imageArray{j}.id))
                         % ======= Attempt 1: SURF (strictest) =======
-                        fprintf("Trying SURF (MetricThreshold = 1000, MaxRatio = 0.65)...\n");
+                        dispfunc("Trying SURF with MetricThreshold = 1000, MaxRatio = 0.65...\n");
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                             'FeatureExtractionMethod', "SURF", ...
                             'MetricThreshold', 1000, ...
                             'MaxRatio', 0.65, ...
                             'MaxNumTrials', 30000, ...
                             'Confidence', 98.0, ...
-                            'MaxDistance', 6);
-                        
-                        % ======= Attempt 2: SIFT fallback (strict) =======
-                        if ~success
-                            dispfunc("SURF failed. Trying SIFT (ContrastThreshold = 0.01)...\n");
-                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'FeatureExtractionMethod', "SIFT", ...
-                                'ContrastThreshold', 0.01, ...
-                                'EdgeThreshold', 10, ...
-                                'NumLayersInOctave', 3, ...
-                                'Sigma', 1.6, ...
-                                'MaxRatio', 0.65, ...
-                                'MaxNumTrials', 30000, ...
-                                'Confidence', 98.0, ...
-                                'MaxDistance', 6);
-                        end
-                        
-                        % ======= Attempt 3: SURF (medium leniency) =======
-                        if ~success
-                            dispfunc("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
-                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'FeatureExtractionMethod', "SURF", ...
-                                'MetricThreshold', 700, ...
-                                'MaxRatio', 0.68, ...
-                                'MaxNumTrials', 35000, ...
-                                'Confidence', 97.0, ...
-                                'MaxDistance', 7);
-                        end
-                        
-                        % ======= Attempt 4: SIFT (more lenient) =======
-                        if ~success
-                            dispfunc("Still failed. Retrying SIFT (ContrastThreshold = 0.005)...\n");
-                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'FeatureExtractionMethod', "SIFT", ...
-                                'ContrastThreshold', 0.005, ...
-                                'EdgeThreshold', 15, ...
-                                'NumLayersInOctave', 4, ...
-                                'Sigma', 1.4, ...
-                                'MaxRatio', 0.68, ...
-                                'MaxNumTrials', 35000, ...
-                                'Confidence', 97.0, ...
-                                'MaxDistance', 7);
-                        end
-                        
+                            'MaxDistance', 6, ...
+                            'dispfunc', dispfunc);
+                        % 
+                        % % ======= Attempt 2: SIFT fallback (strict) =======
+                        % if ~success
+                        %     dispfunc("SURF failed. Trying SIFT (ContrastThreshold = 0.01)...\n");
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod', "SIFT", ...
+                        %         'ContrastThreshold', 0.01, ...
+                        %         'EdgeThreshold', 10, ...
+                        %         'NumLayersInOctave', 3, ...
+                        %         'Sigma', 1.6, ...
+                        %         'MaxRatio', 0.65, ...
+                        %         'MaxNumTrials', 30000, ...
+                        %         'Confidence', 98.0, ...
+                        %         'MaxDistance', 6,...
+                        %         'dispfunc', dispfunc);
+                        % end
+                        % 
+                        % % ======= Attempt 3: SURF (medium leniency) =======
+                        % if ~success
+                        %     dispfunc("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod', "SURF", ...
+                        %         'MetricThreshold', 700, ...
+                        %         'MaxRatio', 0.68, ...
+                        %         'MaxNumTrials', 35000, ...
+                        %         'Confidence', 97.0, ...
+                        %         'MaxDistance', 7, ...
+                        %         'dispfunc', dispfunc);
+                        % end
+                        % 
+                        % % ======= Attempt 4: SIFT (more lenient) =======
+                        % if ~success
+                        %     dispfunc("Still failed. Retrying SIFT (ContrastThreshold = 0.005)...\n");
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod', "SIFT", ...
+                        %         'ContrastThreshold', 0.005, ...
+                        %         'EdgeThreshold', 15, ...
+                        %         'NumLayersInOctave', 4, ...
+                        %         'Sigma', 1.4, ...
+                        %         'MaxRatio', 0.68, ...
+                        %         'MaxNumTrials', 35000, ...
+                        %         'Confidence', 97.0, ...
+                        %         'MaxDistance', 7,
+                        %         'dispfunc', dispfunc);
+                        % end
+                        % 
                         % ======= Attempt 5: SURF (most tolerant) =======
                         if ~success
-                            dispfunc("Retrying SURF one last time (MetricThreshold = 500, MaxRatio = 0.71)...\n");
+                            dispfunc("Retrying SURF with MetricThreshold = 500, MaxRatio = 0.71...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SURF", ...
                                 'MetricThreshold', 500, ...
                                 'MaxRatio', 0.71, ...
                                 'MaxNumTrials', 40000, ...
                                 'Confidence', 96.0, ...
-                                'MaxDistance', 8);
+                                'MaxDistance', 7, ...
+                                'dispfunc', dispfunc);
                         end
 
-                        % ======= Attempt 6: SIFT (most lenient) =======
-                        if ~success
-                            dispfunc("Still failed. Retrying SIFT (most lenient settings)...\n");
-                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                                'FeatureExtractionMethod', "SIFT", ...
-                                'ContrastThreshold', 0.002, ...      % Very low to allow weak features
-                                'EdgeThreshold', 20, ...             % Higher to tolerate more edge-like features
-                                'NumLayersInOctave', 5, ...            % More layers to catch features across scales
-                                'Sigma', 1.2, ...                    % Slightly reduced smoothing
-                                'MaxRatio', 0.7, ...                 % Slightly more lenient match filtering
-                                'MaxNumTrials', 40000, ...
-                                'Confidence', 96.0, ...
-                                'MaxDistance', 8);
-                        end
+                        % % ======= Attempt 6: SIFT (most lenient) =======
+                        % if ~success
+                        %     dispfunc("Still failed. Retrying SIFT (most lenient settings)...\n");
+                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                        %         'FeatureExtractionMethod', "SIFT", ...
+                        %         'ContrastThreshold', 0.002, ...      % Very low to allow weak features
+                        %         'EdgeThreshold', 20, ...             % Higher to tolerate more edge-like features
+                        %         'NumLayersInOctave', 5, ...            % More layers to catch features across scales
+                        %         'Sigma', 1.2, ...                    % Slightly reduced smoothing
+                        %         'MaxRatio', 0.7, ...                 % Slightly more lenient match filtering
+                        %         'MaxNumTrials', 40000, ...
+                        %         'Confidence', 96.0, ...
+                        %         'MaxDistance', 8, ...
+                        %         'dispfunc', dispfunc);
+                        % end
                         
-                        if ~success
-                            dispfunc("All homography attempts failed.\n");
-                        else
-                            dispfunc("Homography estimation successful (inlierRatio = %.2f, #inliers = %.2f).\n", inlierRatio,length(inlierPts1));
-                        end
+                        % get score
+                        score = calcScore(inlierRatio,inlierPts1,success,dispfunc);
 
-                        % Calculate score based on inlier ratio if successful
-                        if success
-                            rawScore = (70 * inlierRatio) + numel(inlierPts1); % Calculate raw score
-                            score = 1/rawScore; % Calculate final score
-                        else
-                            score = inf; % Assign high score if ransac is unsuccessful
-                        end
                     else
                         H = eye(3);
                         score = 0;
@@ -184,29 +177,48 @@ classdef estimateHomographiesSet
                     id1s{end+1} = imageArray{i}.id; % Store first image ID
                     id2s{end+1} = imageArray{j}.id; % Store second image ID
                     Hs{end+1} = H; % Store homography
-
-                    % store inverse
-                    id1s{end+1} = imageArray{j}.id;
-                    id2s{end+1} = imageArray{i}.id;
-                    scores(end+1) = score;
-                    Hs{end+1} = inv(H); 
+                    scoreMatrix(i,j) = score;
+                    scoreMatrix(j,i) = score;
                 end
             end
             
+            % build the graph
+            [Hs,G] = buildUndirectedGraph(id1s, id2s, scores, Hs);
+
+            % Loop through all unique IDs to find optimal paths
             startId = all_ids(1); % Set starting ID
             rel_info_list = {}; % Initialize relative information list
-            
-            % Loop through all unique IDs to find optimal paths
             for x = 2:length(all_ids)
                 endId = all_ids(x); % Set ending ID
-                [~, path_Hs, status,totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId, true);
+
+                [optimalPath, path_Hs, status,totalScore] = findOptimalPathWithInfo(G, Hs, startId, endId, dispfunc);
+
+                displayDebugGraph = true;
+                if displayDebugGraph
+                    % Debug: Display graph details
+                    % Plot the graph
+                    figure;
+                    p = plot(G, ...
+                        'Layout', 'force', ...
+                        'EdgeLabel', G.Edges.Weight, ...
+                        'NodeLabel', G.Nodes.Name);
+                    title('Filtered Graph with Edge Weights');
+                    
+                    % Highlight start and end nodes
+                    highlight(p, string(startId), 'NodeColor', 'green', 'MarkerSize', 8);
+                    highlight(p, string(endId),   'NodeColor', 'red',   'MarkerSize', 8);
+                    
+                    % If optimal path is found, highlight it
+                    if exist('optimalPath', 'var') && ~isempty(optimalPath)
+                        highlight(p, optimalPath, 'EdgeColor', 'r', 'LineWidth', 2);
+                    end
+                end
+
+                M = eye(3); % Initialize transformation matrix as identity
                 if status
-                    M = eye(3); % Initialize transformation matrix as identity
                     for i = length(path_Hs):-1:1
                         M = M * path_Hs{i}; % Accumulate homographies
                     end
-                else
-                    M = eye(3); % Reset to identity if no successful path
                 end
                 % Store the relative homography information
                 rel_info_list{end+1} = struct( ...
@@ -216,122 +228,87 @@ classdef estimateHomographiesSet
                     'score',totalScore);
             end
 
-            scoreMatrix = inf(numImages);    % or NaN to indicate no data
-            scoreMatrix(1:numImages+1:end) = 0; % diagonal zero
-            
-            idx = 1;
-            for i = 1:numImages
-                for j = i+1:numImages
-                    scoreMatrix(i,j) = scores(idx);
-                    scoreMatrix(j,i) = scores(idx);  % assuming symmetric
-                    idx = idx + 1;
-                end
-            end
-
             % turn all warnings back on
             warning('on', 'all')
         end
     end
 end
 
-
-
-function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(id1s, id2s, scores, Hs, startId, endId,displayDebugGraph)
-    % Default no path found status
-    status = 0;
-    totalScore = inf;
-    optimalpath = [];
-    pathInfoMatrices = [];
-
+function [filteredHs,G] = buildUndirectedGraph(id1s, id2s, scores, Hs)
     % Filter edges based on threshold
     scoreThreshold = 1000;
     validEdges = scores <= scoreThreshold;
+
+    % Filter and convert arguments
     filteredId1s = string(id1s(validEdges));
     filteredId2s = string(id2s(validEdges));
     filteredScores = scores(validEdges);
-    filteredInfo = Hs(validEdges);
+    filteredHs = Hs(validEdges);
+
+    % Build undirected graph
+    G = graph(filteredId1s, filteredId2s, filteredScores);
+end
+
+function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(G, Hs, startId, endId, dispfunc)
+    % Default no path found status
+    status = 0;
+    
+    % convert ids to string
     startId = string(startId);
     endId = string(endId);
-
-    % Check if startId and endId appear in edge lists at all
-    allNodes = unique([filteredId1s; filteredId2s]);
-    if ~ismember(startId, allNodes)
-        warning('Start node %s not found in edge list.', startId);
-        optimalPath = [];
-        pathInfoMatrices = {};
-        return;
-    end
-    if ~ismember(endId, allNodes)
-        warning('End node %s not found in edge list.', endId);
-        optimalPath = [];
-        pathInfoMatrices = {};
-        return;
-    end
-
-    % Build the graph
-    G = digraph(filteredId1s, filteredId2s, filteredScores);
-
-    % Check if startId and endId exist in graph nodes
-    if ~ismember(startId, G.Nodes.Name)
-        warning('Start node %s not found in graph nodes.', startId);
-        optimalPath = [];
-        pathInfoMatrices = {};
-        return;
-    end
-    if ~ismember(endId, G.Nodes.Name)
-        warning('End node %s not found in graph nodes.', endId);
-        optimalPath = [];
-        pathInfoMatrices = {};
-        return;
-    end
 
     % Compute shortest path
     [optimalPath, totalScore] = shortestpath(G, startId, endId);
 
     if isempty(optimalPath)
-        warning('No path found between %s and %s.', startId, endId);
+        dispfunc('No path found between %s and %s.', startId, endId);
         pathInfoMatrices = {};
         return;
     end
 
-    % Build lookup map from edges to info matrices
+    % Build map from sorted node pairs to H (only forward direction)
     edgeMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    for i = 1:length(filteredId1s)
-        key = sprintf('%s_%s', filteredId1s(i), filteredId2s(i));
-        edgeMap(key) = filteredInfo{i};
+    edgeEnds = G.Edges.EndNodes;
+    makeEdgeKey = @(a,b) sprintf('%s_%s', sort([string(a), string(b)]));
+    
+    for i = 1:height(G.Edges)
+        id1 = string(edgeEnds(i,1));
+        id2 = string(edgeEnds(i,2));
+        key = makeEdgeKey(id1, id2);
+        edgeMap(key) = Hs{i};  % H for (min, max) direction
     end
-
-    % Collect info matrices for edges along the path
+    
+    % Now, when collecting info matrices for the path:
     pathInfoMatrices = cell(length(optimalPath)-1, 1);
     for i = 1:length(optimalPath)-1
-        key = sprintf('%s_%s', optimalPath(i), optimalPath(i+1));
+        id1 = optimalPath(i);
+        id2 = optimalPath(i+1);
+        key = makeEdgeKey(id1, id2);
         if edgeMap.isKey(key)
-            pathInfoMatrices{i} = edgeMap(key);
+            H = edgeMap(key);
+            % Check direction: if (id1, id2) is NOT sorted order, invert H
+            if id1 > id2  % assuming string comparison works here
+                pathInfoMatrices{i} = inv(H);
+            else
+                pathInfoMatrices{i} = H;
+            end
         else
-            warning('Missing info matrix for edge %s', key);
-            pathInfoMatrices{i} = [];  % or zeros(...) depending on your needs
+            dispfunc('Missing info matrix for edge %s', key);
+            pathInfoMatrices{i} = eye(3); 
         end
     end
 
     status = 1;  % success
     
-    if displayDebugGraph
-        % Debug: Display graph details
-        % Plot the graph
-        figure;
-        p = plot(G, ...
-            'Layout', 'force', ...
-            'EdgeLabel', G.Edges.Weight, ...
-            'NodeLabel', G.Nodes.Name);
-        title('Filtered Graph with Edge Weights');
-        
-        % Highlight start and end nodes
-        highlight(p, startId, 'NodeColor', 'green', 'MarkerSize', 8);
-        highlight(p, endId, 'NodeColor', 'red', 'MarkerSize', 8);
-        
-        % If optimal path is found, highlight it
-        if exist('optimalPath', 'var') && ~isempty(optimalPath)
-            highlight(p, optimalPath, 'EdgeColor', 'r', 'LineWidth', 2);
-        end
+end
+
+function score = calcScore(inlierRatio,inlierPts,success,dispfunc)
+    if success
+        rawScore = (70 * inlierRatio) + numel(inlierPts); % Calculate raw score
+        score = 1/rawScore; % Calculate final score
+        dispfunc("successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
+    else
+        score = inf; % Assign high score if ransac is unsuccessful
+        dispfunc("calculation failed with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
     end
 end
