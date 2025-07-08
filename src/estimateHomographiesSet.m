@@ -1,6 +1,6 @@
 classdef estimateHomographiesSet
     methods (Static)
-        function [rel_info_list] = estimateHomographiesSuccessive(imageArray)
+        function [rel_info_list] = estimateHomographiesSuccessive(imageArray, dispfunc)
         %   Process all images passed by giving two consecutive images to
         %   'estimateHomographymatrixFromSatelite'. Stores the relative information
         %   between the consecutive images.
@@ -11,14 +11,18 @@ classdef estimateHomographiesSet
         % Outputs:
         %   rel_info_list -> Contains H, the inliner Points of H, the names of the compaired
         %   images and a quality score
+
+            if nargin < 2
+                dispfunc = @fprintf;
+            end
             
             numImages = length(imageArray);
         
             % Sort images by ID
-            ids = cellfun(@(x) x.id, imageArray, 'UniformOutput', false);  % cell array of datetime
-            ids_dt = [ids{:}];  % concatenate into datetime array
-            [~, sortIdx] = sort(ids_dt);
-            imageArray = imageArray(sortIdx);
+            % ids = cellfun(@(x) x.id, imageArray, 'UniformOutput', false);  % cell array of datetime
+            % ids_dt = [ids{:}];  % concatenate into datetime array
+            % [~, sortIdx] = sort(ids_dt);
+            % imageArray = imageArray(sortIdx);
 
             % loop over image pairs
             for i = 1:numImages - 1
@@ -26,8 +30,15 @@ classdef estimateHomographiesSet
                 img2 = imageArray{i + 1}.data;
         
                 % Estimate homography
-                [H, inlierPts1, inlierPts2, inlierRatio, ~] = ...
+                [H, inlierPts1, inlierPts2, inlierRatio, success] = ...
                     estimateHomographyPair(img1, img2);
+                if success
+                    rawScore = (70 * inlierRatio) + numel(inlierPts1); % Calculate raw score
+                    score = 1/rawScore; % Calculate final score
+                    dispfunc("successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts1));
+                else
+                    score = inf; % Assign high score if ransac is unsuccessful
+                end
         
                 % store results
                 rel_info_list{i} = struct( ...
@@ -36,11 +47,12 @@ classdef estimateHomographiesSet
                     'inlierPts2', inlierPts2, ...
                     'id1', imageArray{i}.id, ...
                     'id2', imageArray{i + 1}.id, ...
-                    'inlierRatio', inlierRatio);
+                    'inlierRatio', inlierRatio,...
+                    'score', score);
             end
         end
 
-        function [rel_info_list] = estimateHomographiesGraphBased(imageArray)
+        function [rel_info_list, scoreMatrix] = estimateHomographiesGraphBased(imageArray, dispfunc)
         % ESTIMATEHOMOGRAPHIESGRAPHBASED Estimates homographies between images in an array
         %
         % Input Arguments:
@@ -51,6 +63,10 @@ classdef estimateHomographiesSet
             
             % turn off all warnings for debugging purposes
             warning('off', 'all')
+
+            if nargin < 2
+                dispfunc = @fprintf;
+            end
         
             numImages = length(imageArray); % Get the number of images
             all_ids = unique(cellfun(@(x) x.id, imageArray)); % Extract unique image IDs
@@ -66,7 +82,7 @@ classdef estimateHomographiesSet
                     img1 = imageArray{i}.data; % Get data for the first image
                     img2 = imageArray{j}.data; % Get data for the second image
                     if i ~= j
-                        fprintf("------- comparing %s to %s -------\n",string(imageArray{i}.id),string(imageArray{j}.id))
+                        dispfunc("------- comparing %s to %s -------\n",string(imageArray{i}.id),string(imageArray{j}.id))
                         % ======= Attempt 1: SURF (strictest) =======
                         fprintf("Trying SURF (MetricThreshold = 1000, MaxRatio = 0.65)...\n");
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
@@ -79,7 +95,7 @@ classdef estimateHomographiesSet
                         
                         % ======= Attempt 2: SIFT fallback (strict) =======
                         if ~success
-                            fprintf("SURF failed. Trying SIFT (ContrastThreshold = 0.01)...\n");
+                            dispfunc("SURF failed. Trying SIFT (ContrastThreshold = 0.01)...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SIFT", ...
                                 'ContrastThreshold', 0.01, ...
@@ -94,7 +110,7 @@ classdef estimateHomographiesSet
                         
                         % ======= Attempt 3: SURF (medium leniency) =======
                         if ~success
-                            fprintf("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
+                            dispfunc("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SURF", ...
                                 'MetricThreshold', 700, ...
@@ -106,7 +122,7 @@ classdef estimateHomographiesSet
                         
                         % ======= Attempt 4: SIFT (more lenient) =======
                         if ~success
-                            fprintf("Still failed. Retrying SIFT (ContrastThreshold = 0.005)...\n");
+                            dispfunc("Still failed. Retrying SIFT (ContrastThreshold = 0.005)...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SIFT", ...
                                 'ContrastThreshold', 0.005, ...
@@ -121,7 +137,7 @@ classdef estimateHomographiesSet
                         
                         % ======= Attempt 5: SURF (most tolerant) =======
                         if ~success
-                            fprintf("Retrying SURF one last time (MetricThreshold = 500, MaxRatio = 0.71)...\n");
+                            dispfunc("Retrying SURF one last time (MetricThreshold = 500, MaxRatio = 0.71)...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SURF", ...
                                 'MetricThreshold', 500, ...
@@ -133,7 +149,7 @@ classdef estimateHomographiesSet
 
                         % ======= Attempt 6: SIFT (most lenient) =======
                         if ~success
-                            fprintf("Still failed. Retrying SIFT (most lenient settings)...\n");
+                            dispfunc("Still failed. Retrying SIFT (most lenient settings)...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SIFT", ...
                                 'ContrastThreshold', 0.002, ...      % Very low to allow weak features
@@ -147,9 +163,9 @@ classdef estimateHomographiesSet
                         end
                         
                         if ~success
-                            fprintf("All homography attempts failed.\n");
+                            dispfunc("All homography attempts failed.\n");
                         else
-                            fprintf("Homography estimation successful (inlierRatio = %.2f, #inliers = %.2f).\n", inlierRatio,length(inlierPts1));
+                            dispfunc("Homography estimation successful (inlierRatio = %.2f, #inliers = %.2f).\n", inlierRatio,length(inlierPts1));
                         end
 
                         % Calculate score based on inlier ratio if successful
@@ -198,6 +214,18 @@ classdef estimateHomographiesSet
                     'id1', startId, ...
                     'id2', endId, ...
                     'score',totalScore);
+            end
+
+            scoreMatrix = inf(numImages);    % or NaN to indicate no data
+            scoreMatrix(1:numImages+1:end) = 0; % diagonal zero
+            
+            idx = 1;
+            for i = 1:numImages
+                for j = i+1:numImages
+                    scoreMatrix(i,j) = scores(idx);
+                    scoreMatrix(j,i) = scores(idx);  % assuming symmetric
+                    idx = idx + 1;
+                end
             end
 
             % turn all warnings back on

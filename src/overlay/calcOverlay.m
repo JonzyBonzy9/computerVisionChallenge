@@ -3,11 +3,19 @@ classdef calcOverlay < handle
     %   Detailed explanation goes here
 
     properties (Access = public)
+        % input data
+        imageArray  %% array with id (date) and data field
+
+        % calculation inputs and results
         lastIndices
         lastOutput
         resultAvailable
-        transforms  %% all referenced to first indice image
-        imageArray  %% array with id (date) and data field
+        scoreMatrix
+
+        % calculated transforms for overlay
+        transforms  %% transforms which align all images in particular calculation
+        
+        % precomputed warp
         warpedImages
         warpedMasks
 
@@ -24,9 +32,21 @@ classdef calcOverlay < handle
             obj.imageArray = imageArray;
             obj.resultAvailable = false;
         end
-        function obj = calculate(obj, idxs)
+        function obj = calculate(obj, idxs, method, dispFunction)
+            if nargin < 3
+                method = 'succesive';  % or whatever your default is
+            end
+            if nargin < 4
+                dispFunction = @fprintf;
+            end
             obj.lastIndices = idxs;
-            obj.homographieGraphBased();
+            switch method
+                case 'succesive'
+                    obj.homographieSuccesive(dispFunction);
+                case 'graph'
+                    obj.homographieGraphBased(dispFunction);
+            end
+            
             obj.warp();
             obj.resultAvailable = true;
         end
@@ -66,12 +86,29 @@ classdef calcOverlay < handle
             overlay = overlay ./ cat(3, alphaMaskSum, alphaMaskSum, alphaMaskSum);
             overlay = im2uint8(overlay);
         end
+        function scoreMatrix = createScoreConfusion(obj)
+            scoreMatrix = obj.scoreMatrix;  % Return the score matrix for further analysis
+            scoreMatrix(isinf(scoreMatrix)) = NaN;
+        end
     end
 
     methods (Access = private)
-        function homographieSuccesive(obj)
+        function homographieSuccesive(obj, dispFunction)
             filteredImages = obj.imageArray(obj.lastIndices);
-            obj.lastOutput = estimateHomographiesSet.estimateHomographiesSuccessive(filteredImages);
+            obj.lastOutput = estimateHomographiesSet.estimateHomographiesSuccessive(filteredImages, dispFunction);
+
+            % create score matrix
+            % assume the output is ordered as the images are
+            n = numel(obj.lastOutput);
+            obj.scoreMatrix = inf(n+1);  % default to inf or NaN
+            obj.scoreMatrix(1:n+2:end) = 0;  % diagonal is 0 (image vs itself)
+        
+            % Fill in scores from rel_info_list
+            for i = 1:n
+                score = obj.lastOutput{i}.score;
+                obj.scoreMatrix(i, i+1) = score;
+                obj.scoreMatrix(i+1, i) = score;  % assume symmetric
+            end
 
             obj.transforms = cell(1, length(filteredImages));
             obj.transforms{1} = eye(3);
@@ -82,9 +119,9 @@ classdef calcOverlay < handle
             end
         end
 
-        function homographieGraphBased(obj)
+        function homographieGraphBased(obj, dispFunction)
             filteredImages = obj.imageArray(obj.lastIndices);
-            obj.lastOutput = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages);
+            [obj.lastOutput, obj.scoreMatrix] = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages, dispFunction);
 
             obj.transforms = cell(1, length(filteredImages));
             obj.transforms{1} = eye(3);

@@ -5,12 +5,14 @@ classdef OverlayView < handle
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
+        HeatmapPanel    matlab.ui.container.Panel
         CheckboxGrid    matlab.ui.container.GridLayout
         Checkboxes      matlab.ui.control.CheckBox
         CalculateButton matlab.ui.control.Button
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
-        SizingModeDropdown matlab.ui.control.DropDown
+        MethodDropdown matlab.ui.control.DropDown
+        StatusTextArea
     end
 
     methods
@@ -25,7 +27,7 @@ classdef OverlayView < handle
             % Create main layout
             obj.Grid = uigridlayout(app.MainContentPanel, [2, 1]);
             obj.Grid.RowHeight = {'1x'};
-            obj.Grid.ColumnWidth = {'1x', 'fit'};
+            obj.Grid.ColumnWidth = {'1x', '1x', 'fit'};
             obj.Grid.Visible = 'off';
         
             % Create image display area
@@ -34,11 +36,16 @@ classdef OverlayView < handle
             obj.Axes.Layout.Column = 1;
             obj.Axes.XTick = [];
             obj.Axes.YTick = [];
+
+            % Create a panel to host the heatmap in Grid position (1,2)
+            obj.HeatmapPanel = uipanel(obj.Grid);
+            obj.HeatmapPanel.Layout.Row = 1;
+            obj.HeatmapPanel.Layout.Column = 2;
         
             % Create control panel
             controlPanel = uipanel(obj.Grid);
             controlPanel.Layout.Row = 1;
-            controlPanel.Layout.Column = 2;
+            controlPanel.Layout.Column = 3;
         
             controlLayout = uigridlayout(controlPanel);
             controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
@@ -63,11 +70,11 @@ classdef OverlayView < handle
             obj.AllButton.Layout.Row = 3;
 
             % Create sizing mode dropdown
-            obj.SizingModeDropdown = uidropdown(controlLayout, ...
-                'Items', {'Size to First Image', 'Fit All Images'}, ...
-                'Value', 'Size to First Image', ...
-                'Tooltip', 'Select overlay sizing mode');
-            obj.SizingModeDropdown.Layout.Row = 4;  % Adjust rows below accordingly
+            obj.MethodDropdown = uidropdown(controlLayout, ...
+                'Items', {'succesive', 'graph'}, ...
+                'Value', 'succesive', ...
+                'Tooltip', 'Select algorithm');
+            obj.MethodDropdown.Layout.Row = 4;  % Adjust rows below accordingly
         
             % Create Calculate button
             obj.CalculateButton = uibutton(controlLayout, 'push', ...
@@ -134,6 +141,24 @@ classdef OverlayView < handle
                 obj.Checkboxes(i) = cb;
             end
         end
+        function printStatus(obj, fmt, varargin)
+            % Format the string just like fprintf
+            newLine = sprintf(fmt, varargin{:});
+        
+            % Append to current lines
+            oldLines = obj.StatusTextArea.Value;
+        
+            % Ensure it's a cell array of strings
+            if ischar(oldLines)
+                oldLines = cellstr(oldLines);
+            end
+        
+            % Append new line
+            obj.StatusTextArea.Value = [oldLines; newLine];
+        
+            % Scroll to bottom
+            drawnow;  % Ensure UI updates immediately
+        end
     end
 
     methods (Access = private)
@@ -155,7 +180,25 @@ classdef OverlayView < handle
                 return;
             end
 
-            obj.App.OverlayClass.calculate(selectedIndices);
+            method = obj.MethodDropdown.Value;
+
+            obj.CalculateButton.Text = 'Calculating...';
+            obj.CalculateButton.Enable = 'off';            
+            delete(obj.HeatmapPanel.Children);
+            obj.StatusTextArea = uitextarea(obj.Grid, ...
+                'Editable', 'off', ...
+                'FontName', 'Courier New', ...
+                'Value', {'Status output will appear here...'});
+            obj.StatusTextArea.Layout.Column = 2;
+            obj.StatusTextArea.Layout.Row = 1;
+            drawnow;  % Force UI update
+
+            obj.App.OverlayClass.calculate(selectedIndices, method, @obj.printStatus);
+
+            obj.CalculateButton.Text = 'Calculate Overlay';
+            obj.CalculateButton.Enable = 'on';
+            delete(obj.StatusTextArea)
+
 
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
@@ -164,14 +207,27 @@ classdef OverlayView < handle
                 else
                     obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
                 end
-            end
+            end            
 
-            useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
+            scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+            delete(obj.HeatmapPanel.Children);
+            h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
+            'MissingDataLabel', '', ...
+            'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
+            'Colormap', copper, ...
+            'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
+                            max(scoreMatrix(:), [], 'omitnan')]);
+            disp(obj.App.OverlayClass.lastIndices);
+            dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
+            dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
+            % Only show X-axis labels, hide Y-axis labels
+            h.XDisplayLabels = dateLabels;
+            h.YDisplayLabels = dateLabels;  % empty Y labels
 
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
-
+   
         end
 
         function onCheckboxChanged(obj, idx)
@@ -189,7 +245,6 @@ classdef OverlayView < handle
             % Keep only those that were used in last calculation
             validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
-            useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
             overlay = obj.App.OverlayClass.createOverlay(validSelection);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
