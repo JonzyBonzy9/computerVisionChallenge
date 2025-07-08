@@ -106,20 +106,20 @@ classdef estimateHomographiesSet
                         %         'MaxDistance', 6,...
                         %         'dispfunc', dispfunc);
                         % end
-                        % 
-                        % % ======= Attempt 3: SURF (medium leniency) =======
-                        % if ~success
-                        %     dispfunc("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
-                        %     [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
-                        %         'FeatureExtractionMethod', "SURF", ...
-                        %         'MetricThreshold', 700, ...
-                        %         'MaxRatio', 0.68, ...
-                        %         'MaxNumTrials', 35000, ...
-                        %         'Confidence', 97.0, ...
-                        %         'MaxDistance', 7, ...
-                        %         'dispfunc', dispfunc);
-                        % end
-                        % 
+
+                        % ======= Attempt 3: SURF (medium leniency) =======
+                        if ~success
+                            dispfunc("SIFT failed. Retrying SURF (MetricThreshold = 700, MaxRatio = 0.68)...\n");
+                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                                'FeatureExtractionMethod', "SURF", ...
+                                'MetricThreshold', 700, ...
+                                'MaxRatio', 0.68, ...
+                                'MaxNumTrials', 35000, ...
+                                'Confidence', 97.0, ...
+                                'MaxDistance', 7, ...
+                                'dispfunc', dispfunc);
+                        end
+
                         % % ======= Attempt 4: SIFT (more lenient) =======
                         % if ~success
                         %     dispfunc("Still failed. Retrying SIFT (ContrastThreshold = 0.005)...\n");
@@ -182,18 +182,23 @@ classdef estimateHomographiesSet
                 end
             end
             
+            % create lookup map for H matrices
+            edgeMap = createLookupMapForHs(id1s, id2s, Hs);
+
             % build the graph
-            [Hs,G] = buildUndirectedGraph(id1s, id2s, scores, Hs);
+            [G] = buildUndirectedGraph(id1s, id2s, scores);
 
             % Loop through all unique IDs to find optimal paths
             startId = all_ids(1); % Set starting ID
             rel_info_list = {}; % Initialize relative information list
+           
+            displayDebugGraph = false;
+
             for x = 2:length(all_ids)
                 endId = all_ids(x); % Set ending ID
 
-                [optimalPath, path_Hs, status,totalScore] = findOptimalPathWithInfo(G, Hs, startId, endId, dispfunc);
+                [optimalPath, path_Hs, status,totalScore] = findOptimalPathWithInfo(G, startId, endId, edgeMap, dispfunc);
 
-                displayDebugGraph = true;
                 if displayDebugGraph
                     % Debug: Display graph details
                     % Plot the graph
@@ -220,6 +225,7 @@ classdef estimateHomographiesSet
                         M = M * path_Hs{i}; % Accumulate homographies
                     end
                 end
+
                 % Store the relative homography information
                 rel_info_list{end+1} = struct( ...
                     'H', M, ...
@@ -228,13 +234,26 @@ classdef estimateHomographiesSet
                     'score',totalScore);
             end
 
+
+            if displayDebugGraph
+                % Debug: Display graph details
+                figure;
+                bins = conncomp(G); % find connected components (subsets)
+                colors = lines(max(bins)); % colormap for clusters
+                p = plot(G, 'Layout', 'force');
+                p.NodeCData = bins;
+                colormap(colors);
+                colorbar;
+                title('Clustered Reachability Graph');
+            end
+
             % turn all warnings back on
             warning('on', 'all')
         end
     end
 end
 
-function [filteredHs,G] = buildUndirectedGraph(id1s, id2s, scores, Hs)
+function [G] = buildUndirectedGraph(id1s, id2s, scores)
     % Filter edges based on threshold
     scoreThreshold = 1000;
     validEdges = scores <= scoreThreshold;
@@ -243,62 +262,68 @@ function [filteredHs,G] = buildUndirectedGraph(id1s, id2s, scores, Hs)
     filteredId1s = string(id1s(validEdges));
     filteredId2s = string(id2s(validEdges));
     filteredScores = scores(validEdges);
-    filteredHs = Hs(validEdges);
 
     % Build undirected graph
     G = graph(filteredId1s, filteredId2s, filteredScores);
 end
 
-function [optimalPath, pathInfoMatrices, status, totalScore] = findOptimalPathWithInfo(G, Hs, startId, endId, dispfunc)
-    % Default no path found status
+function edgeMap = createLookupMapForHs(id1s, id2s, Hs)
+    edgeMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for i = 1:length(Hs)
+        id1 = string(id1s(i));
+        id2 = string(id2s(i));
+        key1 = id1 + "_" + id2;
+        key2 = id2 + "_" + id1;
+        edgeMap(key1) = Hs{i};
+        edgeMap(key2) = inv(Hs{i});
+    end
+end
+
+function [optimalPath, pathHomographies, status, totalScore] = findOptimalPathWithInfo(G, startId, endId, edgeMap, dispfunc)
+    % Defaults
     status = 0;
-    
+    pathHomographies = {};
+
     % convert ids to string
     startId = string(startId);
     endId = string(endId);
 
     % Compute shortest path
-    [optimalPath, totalScore] = shortestpath(G, startId, endId);
+    optimalPath = [];
+    totalScore = inf;
+    try
+        nodeNames = string(G.Nodes.Name);
+        if ~any(nodeNames == startId) || ~any(nodeNames == endId)
+            dispfunc('Graph does not contain one or both nodes: %s → %s', startId, endId);
+        else
+            [optimalPath, totalScore] = shortestpath(G, startId, endId);
+        end
+    catch ME
+        dispfunc('Unexpected error during shortest path: %s', ME.message);
+    end
 
+    % check if optimal path has been found
     if isempty(optimalPath)
         dispfunc('No path found between %s and %s.', startId, endId);
-        pathInfoMatrices = {};
         return;
     end
 
-    % Build map from sorted node pairs to H (only forward direction)
-    edgeMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    edgeEnds = G.Edges.EndNodes;
-    makeEdgeKey = @(a,b) sprintf('%s_%s', sort([string(a), string(b)]));
-    
-    for i = 1:height(G.Edges)
-        id1 = string(edgeEnds(i,1));
-        id2 = string(edgeEnds(i,2));
-        key = makeEdgeKey(id1, id2);
-        edgeMap(key) = Hs{i};  % H for (min, max) direction
-    end
-    
-    % Now, when collecting info matrices for the path:
-    pathInfoMatrices = cell(length(optimalPath)-1, 1);
-    for i = 1:length(optimalPath)-1
-        id1 = optimalPath(i);
-        id2 = optimalPath(i+1);
-        key = makeEdgeKey(id1, id2);
+    % get list of Hs on optimal path
+    for i = 2:length(optimalPath)
+        id1 = string(optimalPath(i-1));
+        id2 = string(optimalPath(i));
+        key = id1 + "_" + id2;
         if edgeMap.isKey(key)
-            H = edgeMap(key);
-            % Check direction: if (id1, id2) is NOT sorted order, invert H
-            if id1 > id2  % assuming string comparison works here
-                pathInfoMatrices{i} = inv(H);
-            else
-                pathInfoMatrices{i} = H;
-            end
+            pathHomographies{end+1} = edgeMap(key);
         else
-            dispfunc('Missing info matrix for edge %s', key);
-            pathInfoMatrices{i} = eye(3); 
-        end
+            % Handle missing edges
+            pathHomographies{end+1} = eye(3);
+            dispfunc('Missing edge for key %s', key);
+        end    
     end
-
-    status = 1;  % success
+    
+    % success
+    status = 1;
     
 end
 

@@ -209,20 +209,20 @@ classdef OverlayView < handle
                 end
             end            
 
-            scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-            delete(obj.HeatmapPanel.Children);
-            h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
-            'MissingDataLabel', '', ...
-            'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
-            'Colormap', copper, ...
-            'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
-                            max(scoreMatrix(:), [], 'omitnan')]);
-            disp(obj.App.OverlayClass.lastIndices);
-            dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
-            dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
-            % Only show X-axis labels, hide Y-axis labels
-            h.XDisplayLabels = dateLabels;
-            h.YDisplayLabels = dateLabels;  % empty Y labels
+            % scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+            % delete(obj.HeatmapPanel.Children);
+            % h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
+            % 'MissingDataLabel', '', ...
+            % 'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
+            % 'Colormap', copper, ...
+            % 'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
+            %                 max(scoreMatrix(:), [], 'omitnan')]);
+            % disp(obj.App.OverlayClass.lastIndices);
+            % dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
+            % dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
+            % % Only show X-axis labels, hide Y-axis labels
+            % h.XDisplayLabels = dateLabels;
+            % h.YDisplayLabels = dateLabels;  % empty Y labels
 
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 

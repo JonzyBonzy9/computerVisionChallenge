@@ -197,6 +197,4 @@ function [H, inlierPts1, inlierPts2, inlierRatio, success] = estimateHomographyP
         p.Results.dispfunc("Poor inlier ratio (%.2f) with too few inliers (%d)\n", inlierRatio, length(inlierPts1));
         return;
     end
-
-    p.Results.dispfunc("successful calculation\n");
 end
