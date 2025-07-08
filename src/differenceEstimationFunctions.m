@@ -3,9 +3,9 @@ classdef differenceEstimationFunctions
         % define value ranges etc
         valid_methods = {'absdiff','gradient','ssim','dog','pca'};
         value_range_threshold = [0, 1];
-        value_range_blockSize = [1, Inf];
-        value_range_areaMin = [1, Inf];
-        value_range_areaMax = [1, Inf];
+        value_range_blockSize = [1, 30];
+        value_range_areaMin = [1, 150];
+        value_range_areaMax = [1, 150];
     end
 
     methods (Static)
