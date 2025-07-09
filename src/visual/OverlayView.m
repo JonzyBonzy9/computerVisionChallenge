@@ -5,7 +5,7 @@ classdef OverlayView < handle
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
-        HeatmapPanel    matlab.ui.container.Panel
+        HeatmapPanel
         CheckboxGrid    matlab.ui.container.GridLayout
         Checkboxes      matlab.ui.control.CheckBox
         CalculateButton matlab.ui.control.Button
@@ -38,10 +38,32 @@ classdef OverlayView < handle
             obj.Axes.YTick = [];
 
             % Create a panel to host the heatmap in Grid position (1,2)
-            obj.HeatmapPanel = uipanel(obj.Grid);
-            obj.HeatmapPanel.Layout.Row = 1;
-            obj.HeatmapPanel.Layout.Column = 2;
-        
+            tabGroup = uitabgroup(obj.Grid);
+            tabGroup.Layout.Row = 1;
+            tabGroup.Layout.Column = 2;
+
+            % Create tabs
+            consoleTab = uitab(tabGroup, 'Title', 'Console');
+            matrixTab  = uitab(tabGroup, 'Title', 'Confusion Matrix');
+            graphTab   = uitab(tabGroup, 'Title', 'Graph');
+
+            % Store panels or axes for later use
+            obj.StatusTextArea = uitextarea(consoleTab, ...
+                'Editable', 'off', ...
+                'FontName', 'Courier New', ...
+                'Value', {'Console output will appear here...'});  % For clarity
+            
+            % Use a placeholder for the graph view for now
+            uilabel(graphTab, ...
+                'Text', 'Graph view placeholder (coming soon)', ...
+                'FontSize', 14, ...
+                'HorizontalAlignment', 'center', ...
+                'VerticalAlignment', 'center', ...
+                'Position', [20 20 300 40]);
+            
+            % Store reference to matrixTab (if needed)
+            obj.HeatmapPanel = matrixTab;  % reuse the existing property
+
             % Create control panel
             controlPanel = uipanel(obj.Grid);
             controlPanel.Layout.Row = 1;
@@ -183,22 +205,15 @@ classdef OverlayView < handle
             method = obj.MethodDropdown.Value;
 
             obj.CalculateButton.Text = 'Calculating...';
-            obj.CalculateButton.Enable = 'off';            
-            delete(obj.HeatmapPanel.Children);
-            obj.StatusTextArea = uitextarea(obj.Grid, ...
-                'Editable', 'off', ...
-                'FontName', 'Courier New', ...
-                'Value', {'Status output will appear here...'});
-            obj.StatusTextArea.Layout.Column = 2;
-            obj.StatusTextArea.Layout.Row = 1;
+            obj.CalculateButton.Enable = 'off';
+            obj.StatusTextArea.Value = ""
+
             drawnow;  % Force UI update
 
             obj.App.OverlayClass.calculate(selectedIndices, method, @obj.printStatus);
 
             obj.CalculateButton.Text = 'Calculate Overlay';
             obj.CalculateButton.Enable = 'on';
-            delete(obj.StatusTextArea)
-
 
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
@@ -209,20 +224,19 @@ classdef OverlayView < handle
                 end
             end            
 
-            % scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-            % delete(obj.HeatmapPanel.Children);
-            % h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
-            % 'MissingDataLabel', '', ...
-            % 'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
-            % 'Colormap', copper, ...
-            % 'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
-            %                 max(scoreMatrix(:), [], 'omitnan')]);
-            % disp(obj.App.OverlayClass.lastIndices);
-            % dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
-            % dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
-            % % Only show X-axis labels, hide Y-axis labels
-            % h.XDisplayLabels = dateLabels;
-            % h.YDisplayLabels = dateLabels;  % empty Y labels
+            scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+            h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
+            'MissingDataLabel', '', ...
+            'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
+            'Colormap', copper, ...
+            'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
+                            max(scoreMatrix(:), [], 'omitnan')]);
+            disp(obj.App.OverlayClass.lastIndices);
+            dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
+            dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
+            % Only show X-axis labels, hide Y-axis labels
+            h.XDisplayLabels = dateLabels;
+            h.YDisplayLabels = dateLabels;  % empty Y labels
 
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
