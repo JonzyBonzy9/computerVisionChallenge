@@ -110,6 +110,7 @@ classdef OverlayView < handle
         function onImLoad(obj)
             % Update panel
             obj.dataAvailable = true;
+            imshow(obj.App.OverlayClass.imageArray{1}.data, 'Parent', obj.Axes);
         end
 
         function show(obj)
@@ -181,19 +182,6 @@ classdef OverlayView < handle
             % Scroll to bottom
             drawnow;  % Ensure UI updates immediately
         end
-    end
-
-    methods (Access = private)
-        function clearCheckboxes(obj)
-            for i = 1:length(obj.Checkboxes)
-                obj.Checkboxes(i).Value = false;
-            end
-        end
-        function allCheckboxes(obj)
-            for i = 1:length(obj.Checkboxes)
-                obj.Checkboxes(i).Value = true;
-            end
-        end
         function calculate(obj)            
             selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
@@ -241,8 +229,25 @@ classdef OverlayView < handle
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
+            
+            % --- Update exterior button, now differences can be calculated
+            obj.App.CalculateDifferencesButton.Text = "Calculate Differences";
+            obj.App.CalculateDifferencesButton.Enable = 'on';
    
         end
+    end    
+
+    methods (Access = private)
+        function clearCheckboxes(obj)
+            for i = 1:length(obj.Checkboxes)
+                obj.Checkboxes(i).Value = false;
+            end
+        end
+        function allCheckboxes(obj)
+            for i = 1:length(obj.Checkboxes)
+                obj.Checkboxes(i).Value = true;
+            end
+        end        
 
         function onCheckboxChanged(obj, idx)
             % Only proceed if we have valid previous data
