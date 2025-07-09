@@ -16,6 +16,7 @@ classdef OverlayView < handle
         MethodDropdown  matlab.ui.control.DropDown
         StatusTextArea
         GroupDropdown   matlab.ui.control.DropDown
+        controlPanel
     end
 
     methods
@@ -65,12 +66,13 @@ classdef OverlayView < handle
             obj.HeatmapPanel = matrixTab;  % reuse the existing property
 
             % Create control panel
-            controlPanel = uipanel(obj.Grid);
-            controlPanel.Layout.Row = 1;
-            controlPanel.Layout.Column = 3;
+            obj.controlPanel = uipanel(obj.Grid);
+            obj.controlPanel.Scrollable = 'on';
+            obj.controlPanel.Layout.Row = 1;
+            obj.controlPanel.Layout.Column = 3;
         
-            controlLayout = uigridlayout(controlPanel);
-            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
+            controlLayout = uigridlayout(obj.controlPanel);
+            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             controlLayout.ColumnWidth = {'1x'};
             
             lbl = uilabel(controlLayout, 'Text', 'Select Group:');
@@ -80,7 +82,6 @@ classdef OverlayView < handle
             groupLayout.ColumnWidth = {'1x', '1x'};
             groupLayout.RowHeight = {'1x'};
             groupLayout.Layout.Row = 2;
-
             
             obj.GroupDropdown = uidropdown(groupLayout, ...
                 'Items', {}, ...               % initially empty
@@ -138,6 +139,8 @@ classdef OverlayView < handle
         function onImLoad(obj)
             % Update panel
             obj.dataAvailable = true;
+            obj.controlPanel.Scrollable = 'off';
+            obj.controlPanel.Scrollable = 'on';  % Toggle to re-check scroll need
         end
 
         function show(obj)
