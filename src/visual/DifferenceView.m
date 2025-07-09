@@ -52,7 +52,7 @@ classdef DifferenceView < handle
             controlPanel.Layout.Column = 2;
         
             controlLayout = uigridlayout(controlPanel);
-            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
+            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             controlLayout.ColumnWidth = {'1x'};
 
             groupLayout = uigridlayout(controlLayout);
@@ -114,41 +114,41 @@ classdef DifferenceView < handle
                 'Limits', [differenceEstimationFunctions.value_range_threshold(1), differenceEstimationFunctions.value_range_threshold(end)], ...
                 'Value', 0, ... %roundNiceTicks(differenceEstimationFunctions.value_range_threshold(1), differenceEstimationFunctions.value_range_threshold(end), 10), ...
                 'Tooltip', 'Adjust threshold for overlay calculation');
-            obj.SliderThreshold.Layout.Row = 9;
+            obj.SliderThreshold.Layout.Row = 10;
 
             obj.ThresholdLabel = uilabel(controlLayout, ...
                 'Text', 'Threshold');
-            obj.ThresholdLabel.Layout.Row = 10;
+            obj.ThresholdLabel.Layout.Row = 9;
 
             obj.SliderBlockSize = uislider(controlLayout, ...
                 'Limits', [differenceEstimationFunctions.value_range_blockSize(1), differenceEstimationFunctions.value_range_blockSize(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_blockSize(1), differenceEstimationFunctions.value_range_blockSize(end), 1000), ...
                 'Tooltip', 'Adjust block size for processing');
-            obj.SliderBlockSize.Layout.Row = 11;
+            obj.SliderBlockSize.Layout.Row = 12;
 
             obj.BlocksizeLabel = uilabel(controlLayout, ...
                 'Text', 'Blocksize');
-            obj.BlocksizeLabel.Layout.Row = 12;
+            obj.BlocksizeLabel.Layout.Row = 11;
 
             obj.SliderAreaMin = uislider(controlLayout, ...
                 'Limits', [differenceEstimationFunctions.value_range_areaMin(1), differenceEstimationFunctions.value_range_areaMin(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_areaMin(1), differenceEstimationFunctions.value_range_areaMin(end), 1000), ...
                 'Tooltip', 'Minimum area for overlay');
-            obj.SliderAreaMin.Layout.Row = 13;
+            obj.SliderAreaMin.Layout.Row = 14;
 
             obj.AreaMinLabel = uilabel(controlLayout, ...
                 'Text', 'Min Area');
-            obj.AreaMinLabel.Layout.Row = 14;
+            obj.AreaMinLabel.Layout.Row = 13;
 
             obj.SliderAreaMax = uislider(controlLayout, ...
                 'Limits', [differenceEstimationFunctions.value_range_areaMax(1), differenceEstimationFunctions.value_range_areaMax(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_areaMax(1), differenceEstimationFunctions.value_range_areaMax(end), 1000), ...
                 'Tooltip', 'Maximum area for overlay');
-            obj.SliderAreaMax.Layout.Row = 15;
+            obj.SliderAreaMax.Layout.Row = 16;
 
             obj.AreaMaxLabel = uilabel(controlLayout, ...
                 'Text', 'Max Area');
-            obj.AreaMaxLabel.Layout.Row = 16;
+            obj.AreaMaxLabel.Layout.Row = 15;
             
 
         end
