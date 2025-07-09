@@ -48,7 +48,7 @@ classdef estimateHomographiesSet
             end
         end
 
-        function [rel_info_list, scoreMatrix] = estimateHomographiesGraphBased(imageArray, dispfunc)
+        function [transforms, groups, scoreMatrix, G] = estimateHomographiesGraphBased(imageArray, dispfunc)
         % ESTIMATEHOMOGRAPHIESGRAPHBASED Estimates homographies between images in an array
         %
         % Input Arguments:
@@ -56,6 +56,12 @@ classdef estimateHomographiesSet
         %
         % Output Arguments:
         %     rel_info_list - list of relative homographies and their scores
+        %       transforms: id: transformation matrix (id is id from
+        %       imageArray
+        %       groups: [[ids group1][ids group2]...] ids -> ids from
+        %       imageArray
+        %       scoreMatrix: matrix of cross scores between all images
+        %       g Graph
             
             % turn off all warnings for debugging purposes
             warning('off', 'all')
@@ -249,6 +255,19 @@ classdef estimateHomographiesSet
 
             % turn all warnings back on
             warning('on', 'all')
+        end
+        function [G] = buildUndirectedGraph(id1s, id2s, scores)
+            % Filter edges based on threshold
+            scoreThreshold = 1000;
+            validEdges = scores <= scoreThreshold;
+        
+            % Filter and convert arguments
+            filteredId1s = string(id1s(validEdges));
+            filteredId2s = string(id2s(validEdges));
+            filteredScores = scores(validEdges);
+        
+            % Build undirected graph
+            G = graph(filteredId1s, filteredId2s, filteredScores);
         end
     end
 end

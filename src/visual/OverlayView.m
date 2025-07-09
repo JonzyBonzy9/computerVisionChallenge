@@ -5,6 +5,7 @@ classdef OverlayView < handle
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
+        GraphAxes            matlab.ui.control.UIAxes
         HeatmapPanel
         CheckboxGrid    matlab.ui.container.GridLayout
         Checkboxes      matlab.ui.control.CheckBox
@@ -54,12 +55,9 @@ classdef OverlayView < handle
                 'Value', {'Console output will appear here...'});  % For clarity
             
             % Use a placeholder for the graph view for now
-            uilabel(graphTab, ...
-                'Text', 'Graph view placeholder (coming soon)', ...
-                'FontSize', 14, ...
-                'HorizontalAlignment', 'center', ...
-                'VerticalAlignment', 'center', ...
-                'Position', [20 20 300 40]);
+            obj.GraphAxes = uiaxes(graphTab);
+            obj.GraphAxes.XTick = [];
+            obj.GraphAxes.YTick = [];
             
             % Store reference to matrixTab (if needed)
             obj.HeatmapPanel = matrixTab;  % reuse the existing property
@@ -241,6 +239,9 @@ classdef OverlayView < handle
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
+
+            % --- Graph display ---
+            obj.App.OverlayClass.plotReachabilityGraph(obj.GraphAxes);
    
         end
 
@@ -271,6 +272,6 @@ classdef OverlayView < handle
     methods (Static)
         function name = getName()
             name = 'Overlay';
-        end
+        end        
     end
 end
