@@ -47,11 +47,10 @@ classdef differenceEstimationFunctions < handle
             obj.areaMin = areaMin;
             obj.areaMax = areaMax;
 
-            [~, loc] = ismember(obj.overlay.lastIndices, indices);
-            % Filter: ignore zeros (means not found)
-            validLoc = loc(loc > 0);
-            filteredImages = obj.overlay.warpedImages(validLoc);
-            filteredMasks = obj.overlay.warpedMasks(validLoc);
+
+            isInSelection = ismember(obj.overlay.lastIndices, indices);
+            filteredImages = obj.overlay.warpedImages(isInSelection);
+            filteredMasks = obj.overlay.warpedMasks(isInSelection);
 
             obj.differenceMasks = cell(1, length(filteredImages)-1);
 
@@ -84,7 +83,7 @@ classdef differenceEstimationFunctions < handle
                 obj.differenceMasks{i} = mask;
             
                 % Postprocess mask with area filtering
-                mask = differenceEstimationFunctions.postprocessMask(mask, areaMin, areaMax);
+                % mask = differenceEstimationFunctions.postprocessMask(mask, areaMin, areaMax);
                                 
             end
             differenceMasks = obj.differenceMasks;
