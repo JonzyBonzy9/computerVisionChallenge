@@ -1,4 +1,28 @@
-classdef differenceEstimationFunctions
+classdef differenceEstimationFunctions < handle
+
+    properties (Access = public)
+        % overlayed images for calculation
+        overlay
+        % input data for calculation
+        method
+        threshold
+        blockSize
+        areaMin
+        areaMax
+        imageArray  %% array with id (date) and data field
+
+        % calculation inputs and results
+        lastIndices
+        differenceMasks
+        resultAvailable
+
+        % further public properties
+        % e.g. parameters for algorithm
+    end
+    properties (Access = private)
+        % private properties
+    end
+
     properties (Constant)
         % define value ranges etc
         valid_methods = {'absdiff','gradient','ssim','dog','pca'};
@@ -6,6 +30,65 @@ classdef differenceEstimationFunctions
         value_range_blockSize = [1, 30];
         value_range_areaMin = [1, 150];
         value_range_areaMax = [1, 150];
+    end
+
+    methods
+        function obj = differenceEstimationFunctions(overlayClass)
+            obj.overlay = overlayClass;
+            obj.resultAvailable = false;
+        end
+
+        function differenceMasks = calculate(obj, indices, method, threshold, blockSize, areaMin, areaMax)
+            obj.lastIndices = indices;
+            obj.method = method;
+            obj.threshold = threshold;
+            blockSize = ceil(blockSize);
+            obj.blockSize = blockSize;
+            obj.areaMin = areaMin;
+            obj.areaMax = areaMax;
+
+            [~, loc] = ismember(obj.overlay.lastIndices, indices);
+            % Filter: ignore zeros (means not found)
+            validLoc = loc(loc > 0);
+            filteredImages = obj.overlay.warpedImages(validLoc);
+
+            obj.differenceMasks = cell(1, length(filteredImages)-1);
+
+            % Preprocess images first
+            for i=1:length(filteredImages)-1
+                I1 = filteredImages{i};
+                I2 = filteredImages{i+1};
+
+
+                [I1, I2] = differenceEstimationFunctions.preprocessImages(I1, I2, blockSize);
+                % Dispatch to the specified method
+                switch lower(method)
+                    case 'absdiff'
+                        mask = differenceEstimationFunctions.detectChange_absdiff(I1, I2, threshold, true);
+                    case 'gradient'
+                        mask = differenceEstimationFunctions.detectChange_gradient(I1, I2, threshold, true);
+                    case 'ssim'
+                        mask = differenceEstimationFunctions.detectChange_ssim(I1, I2, threshold, true);
+                    case 'dog'
+                        mask = differenceEstimationFunctions.detectChange_DoG(I1, I2, threshold, true);
+                    case 'pca'
+                        mask = differenceEstimationFunctions.detectChange_pca(I1, I2, threshold, true);
+                    otherwise
+                        error('Unknown method "%s". Supported methods: absdiff, gradient, ssim, dog, pca.', method);
+                end
+
+                obj.differenceMasks{i} = mask;
+            
+                % Postprocess mask with area filtering
+                mask = differenceEstimationFunctions.postprocessMask(mask, areaMin, areaMax);
+                                
+            end
+            differenceMasks = obj.differenceMasks;
+        end
+
+        function mask = getMask(obj, id)
+            mask = obj.differenceMasks{id};
+        end
     end
 
     methods (Static)

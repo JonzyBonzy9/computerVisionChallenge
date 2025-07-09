@@ -213,7 +213,14 @@ classdef DifferenceView < handle
                 return;
             end
 
-            obj.App.OverlayClass.calculate(selectedIndices);
+            % Retrieve values from UI elements
+            method = obj.MethodDropDown.Value;
+            threshold = obj.SliderThreshold.Value;
+            blockSize = obj.SliderBlockSize.Value;
+            areaMin = obj.SliderAreaMin.Value;
+            areaMax = obj.SliderAreaMax.Value;
+
+            obj.App.DifferenceClass.calculate(selectedIndices, method, threshold, blockSize, areaMin, areaMax);
 
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
@@ -224,9 +231,7 @@ classdef DifferenceView < handle
                 end
             end
 
-            useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
-
-            overlay = obj.App.DifferenceClass.createOverlay(selectedIndices);
+            overlay = obj.App.DifferenceClass.getMask(1);
 
             imshow(overlay, 'Parent', obj.Axes);
 
