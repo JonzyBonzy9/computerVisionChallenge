@@ -210,19 +210,6 @@ classdef DifferenceView < handle
                 obj.Checkboxes(i) = cb;
             end
         end
-    end
-
-    methods (Access = private)
-        function clearCheckboxes(obj)
-            for i = 1:length(obj.Checkboxes)
-                obj.Checkboxes(i).Value = false;
-            end
-        end
-        function allCheckboxes(obj)
-            for i = 1:length(obj.Checkboxes)
-                obj.Checkboxes(i).Value = true;
-            end
-        end
         function calculate(obj)            
             selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
@@ -256,6 +243,19 @@ classdef DifferenceView < handle
             obj.createTranspOverlay(obj.Axes, overlay, mask);   
 
         end
+    end
+
+    methods (Access = private)
+        function clearCheckboxes(obj)
+            for i = 1:length(obj.Checkboxes)
+                obj.Checkboxes(i).Value = false;
+            end
+        end
+        function allCheckboxes(obj)
+            for i = 1:length(obj.Checkboxes)
+                obj.Checkboxes(i).Value = true;
+            end
+        end        
 
         function createBoundaryOverlay(~, parent, overlay, mask)
             imshow(overlay, 'Parent', parent);
