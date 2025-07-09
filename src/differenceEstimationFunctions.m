@@ -51,6 +51,7 @@ classdef differenceEstimationFunctions < handle
             % Filter: ignore zeros (means not found)
             validLoc = loc(loc > 0);
             filteredImages = obj.overlay.warpedImages(validLoc);
+            filteredMasks = obj.overlay.warpedMasks(validLoc);
 
             obj.differenceMasks = cell(1, length(filteredImages)-1);
 
@@ -76,6 +77,9 @@ classdef differenceEstimationFunctions < handle
                     otherwise
                         error('Unknown method "%s". Supported methods: absdiff, gradient, ssim, dog, pca.', method);
                 end
+                mask = imresize(mask, size(filteredMasks{i}), 'nearest');
+
+                mask = mask & filteredMasks{i} & filteredMasks{i+1};
 
                 obj.differenceMasks{i} = mask;
             

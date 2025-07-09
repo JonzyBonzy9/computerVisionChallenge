@@ -231,10 +231,39 @@ classdef DifferenceView < handle
                 end
             end
 
-            overlay = obj.App.DifferenceClass.getMask(1);
+            mask = obj.App.DifferenceClass.getMask(1);
 
-            imshow(overlay, 'Parent', obj.Axes);
+            overlay = obj.App.OverlayClass.createOverlay(selectedIndices(1:2));
+            % obj.createBoundaryOverlay(obj.Axes, overlay, mask);
+            obj.createTranspOverlay(obj.Axes, overlay, mask);   
 
+        end
+
+        function createBoundaryOverlay(~, parent, overlay, mask)
+            imshow(overlay, 'Parent', parent);
+            hold(parent, 'on') % hold on for the correct axes
+            
+            boundaries = bwboundaries(mask);
+            for k = 1:length(boundaries)
+                b = boundaries{k};
+                plot(parent, b(:,2), b(:,1), 'r', 'LineWidth', 1.5); % explicitly plot into obj.Axes
+            end
+            
+            title(parent, 'Outlined difference regions') % assign title to the same axes
+        end
+
+        function createTranspOverlay(~, parent, overlay, mask)
+            % Display the base image
+            imshow(overlay, 'Parent', parent);
+            hold(parent, 'on');
+            
+            % Create a red-colored mask image (same size as overlay)
+            redMask = zeros(size(overlay), 'like', overlay); % same type and size
+            redMask(:,:,1) = 255; % full red
+            
+            % Show the red mask with transparency defined by binary mask
+            h = imshow(redMask, 'Parent', parent);
+            set(h, 'AlphaData', 0.4 * double(mask)); % transparency mask
         end
 
         function onCheckboxChanged(obj, idx)
