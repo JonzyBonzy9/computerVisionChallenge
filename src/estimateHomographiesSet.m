@@ -197,28 +197,37 @@ classdef estimateHomographiesSet
         end
 
         function [G] = buildUndirectedGraph(id1s, id2s, scores)
-            % BUILDUNDIRECTEDGRAPH Function to create an undirected graph from edge data
+            % BUILDUNDIRECTEDGRAPH Create an undirected graph from edge data,
+            % filtering out edges with infinite weights while preserving all nodes.
             %
             % Input Arguments:
-            %     id1s   - Source node identifiers
-            %     id2s   - Target node identifiers
-            %     scores  - Weights or scores associated with the edges
+            %     id1s   - Source node identifiers (cell array or string array)
+            %     id2s   - Target node identifiers (cell array or string array)
+            %     scores - Numeric vector of edge weights or scores
             %
             % Output Arguments:
-            %     G      - Undirected graph object
+            %     G      - Undirected graph object containing all nodes, 
+            %              with edges having finite weights only
         
-            % Filter edges based on threshold
-            scoreThreshold = 1000;
-            validEdges = scores <= scoreThreshold;
-            
-            % Filter and convert arguments
-            filteredId1s = string(id1s(validEdges));
-            filteredId2s = string(id2s(validEdges));
+            % Convert node IDs to strings (in case input is cell or char)
+            id1s = string(id1s);
+            id2s = string(id2s);
+        
+            % Identify edges with finite (non-Inf) scores
+            validEdges = isfinite(scores);
+        
+            % Filter edges to only those with finite weights
+            filteredId1s = id1s(validEdges);
+            filteredId2s = id2s(validEdges);
             filteredScores = scores(validEdges);
-            
-            % Build undirected graph
-            G = graph(filteredId1s, filteredId2s, filteredScores);
-end
+        
+            % Get list of all unique nodes (including isolated ones)
+            allNodes = unique([id1s; id2s]);
+        
+            % Create graph with filtered edges and all nodes explicitly specified
+            G = graph(filteredId1s, filteredId2s, filteredScores, allNodes);
+        end
+
     end
 end
 
@@ -261,7 +270,7 @@ function [optimalPath, pathHomographies,status, totalScore] = findOptimalPathWit
     %     totalScore       - Total score of the optimal path
     
     % init status as unsuccessful
-    status = 0
+    status = 0;
     
     % Defaults
     pathHomographies = {};

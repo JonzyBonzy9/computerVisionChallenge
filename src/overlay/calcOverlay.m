@@ -95,23 +95,32 @@ classdef calcOverlay < handle
         function plotReachabilityGraph(obj, ax)
             filteredImages = obj.imageArray(obj.lastIndices);
             transformImageIDs = cellfun(@(im) im.id, filteredImages);
-
+        
             % Determine identity transformation (tolerance for floating-point)
             isIdentity = cellfun(@(T) norm(T - eye(3), 'fro') < 1e-10, obj.transforms);
             identityIDs = transformImageIDs(isIdentity);  % datetime array
-            
+        
             % Create logical mask for graph nodes that match identity transforms
             graphNodeIDs = obj.g.Nodes.Name;  % datetime array
             isIdentityNode = ismember(graphNodeIDs, identityIDs);  % logical array
-            p = plot(ax, obj.g, ...
-                'Layout', 'force', ...
-                'EdgeLabel', obj.g.Edges.Weight, ...
-                'NodeLabel', obj.g.Nodes.Name);
-            
-            % Apply colors
-            p.NodeCData = double(isIdentityNode) + 1;  % 1 if false (blue), 2 if true (red)
-
-
+        
+            % Plot graph
+            if numedges(obj.g) > 0
+                % Plot with edge labels if edges exist
+                p = plot(ax, obj.g, ...
+                    'Layout', 'force', ...
+                    'EdgeLabel', obj.g.Edges.Weight, ...
+                    'NodeLabel', obj.g.Nodes.Name);
+            else
+                % Plot without edge labels if no edges
+                p = plot(ax, obj.g, ...
+                    'Layout', 'force', ...
+                    'NodeLabel', obj.g.Nodes.Name);
+            end
+        
+            % Apply colors: 1 for false (blue), 2 for true (red)
+            p.NodeCData = double(isIdentityNode) + 1;
+        
             % Title
             title(ax, 'Clustered Reachability Graph with Edge Weights');
         end

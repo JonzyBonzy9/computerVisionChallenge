@@ -241,15 +241,24 @@ classdef OverlayView < handle
                     obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
                 end
             end            
-
+            
+            % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf with NaN so it's ignored
+            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
+            % get min and max vals
+            minVal = min(scoreMatrix(:), [], 'omitnan');
+            maxVal = max(scoreMatrix(:), [], 'omitnan');
+            % Handle edge case where all entries are NaN or equal
+            if isempty(minVal) || isempty(maxVal) || maxVal <= minVal || isnan(minVal) || isnan(maxVal)
+                minVal = 0;
+                maxVal = 1;
+            end
+            
             h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
-            'MissingDataLabel', '', ...
-            'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
-            'Colormap', copper, ...
-            'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
-                            max(scoreMatrix(:), [], 'omitnan')]);
+                'MissingDataLabel', '', ...
+                'MissingDataColor', [0.8, 0.8, 0.8], ...
+                'Colormap', copper, ...
+                'ColorLimits', [minVal, maxVal]);
             disp(obj.App.OverlayClass.lastIndices);
             dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
             dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
