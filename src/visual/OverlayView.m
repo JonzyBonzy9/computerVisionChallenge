@@ -121,8 +121,8 @@ classdef OverlayView < handle
             lbl.Layout.Row = 7;
             
             obj.MethodDropdown = uidropdown(controlLayout, ...
-                'Items', {'succesive', 'graph'}, ...
-                'Value', 'succesive', ...
+                'Items', {'graph', 'successive'}, ...
+                'Value', 'graph', ...
                 'Tooltip', 'Select algorithm');
             obj.MethodDropdown.Layout.Row = 8;
             
@@ -193,6 +193,29 @@ classdef OverlayView < handle
                 obj.Checkboxes(i) = cb;
             end
         end
+
+        function reset(obj)
+            % Reset the overlay view UI and state
+        
+            % Clear console
+            obj.StatusTextArea.Value = {'Console output will appear here...'};
+        
+            % Clear axes
+            cla(obj.Axes);
+            cla(obj.GraphAxes);
+        
+            obj.MethodDropdown.Value = 'graph';
+        
+            % Delete existing checkboxes
+            if isvalid(obj.CheckboxGrid)
+                delete(allchild(obj.CheckboxGrid));
+            end
+            
+            % TODO: reset confusion matrix, low priority
+
+        end
+
+
         function printStatus(obj, fmt, varargin)
             % Format the string just like fprintf
             newLine = sprintf(fmt, varargin{:});
@@ -287,11 +310,13 @@ classdef OverlayView < handle
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
         end
         function allCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
         end        
 
         function onCheckboxChanged(obj)
