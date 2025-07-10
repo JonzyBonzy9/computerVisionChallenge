@@ -5,14 +5,18 @@ classdef OverlayView < handle
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
+        GraphAxes            matlab.ui.control.UIAxes
         HeatmapPanel
         CheckboxGrid    matlab.ui.container.GridLayout
         Checkboxes      matlab.ui.control.CheckBox
         CalculateButton matlab.ui.control.Button
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
-        MethodDropdown matlab.ui.control.DropDown
+        ApplyGroupButton     matlab.ui.control.Button
+        MethodDropdown  matlab.ui.control.DropDown
         StatusTextArea
+        GroupDropdown   matlab.ui.control.DropDown
+        controlPanel
     end
 
     methods
@@ -54,55 +58,80 @@ classdef OverlayView < handle
                 'Value', {'Console output will appear here...'});  % For clarity
             
             % Use a placeholder for the graph view for now
-            uilabel(graphTab, ...
-                'Text', 'Graph view placeholder (coming soon)', ...
-                'FontSize', 14, ...
-                'HorizontalAlignment', 'center', ...
-                'VerticalAlignment', 'center', ...
-                'Position', [20 20 300 40]);
+            obj.GraphAxes = uiaxes(graphTab);
+            obj.GraphAxes.XTick = [];
+            obj.GraphAxes.YTick = [];
             
             % Store reference to matrixTab (if needed)
             obj.HeatmapPanel = matrixTab;  % reuse the existing property
 
             % Create control panel
-            controlPanel = uipanel(obj.Grid);
-            controlPanel.Layout.Row = 1;
-            controlPanel.Layout.Column = 3;
+            obj.controlPanel = uipanel(obj.Grid);
+            obj.controlPanel.Scrollable = 'on';
+            obj.controlPanel.Layout.Row = 1;
+            obj.controlPanel.Layout.Column = 3;
         
-            controlLayout = uigridlayout(controlPanel);
-            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', '1x', 'fit'};
+            controlLayout = uigridlayout(obj.controlPanel);
+            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             controlLayout.ColumnWidth = {'1x'};
-        
-            % Create checkbox grid
+            
+            lbl = uilabel(controlLayout, 'Text', 'Select Group:');
+            lbl.Layout.Row = 1;
+
+            groupLayout = uigridlayout(controlLayout);
+            groupLayout.ColumnWidth = {'1x', '1x'};
+            groupLayout.RowHeight = {'1x'};
+            groupLayout.Layout.Row = 2;
+            
+            obj.GroupDropdown = uidropdown(groupLayout, ...
+                'Items', {}, ...               % initially empty
+                'Tooltip', 'Select a group');
+            obj.GroupDropdown.Layout.Column = 1;
+            % "Apply" button to apply selection (even if it's the same)
+            obj.ApplyGroupButton = uibutton(groupLayout, ...
+                'Text', 'Apply', ...
+                'ButtonPushedFcn', @(btn, evt)obj.onGroupSelected());
+            obj.ApplyGroupButton.Layout.Column = 2;
+            
+            lbl = uilabel(controlLayout, 'Text', 'Select Items:');
+            lbl.Layout.Row = 3;
+            
             obj.CheckboxGrid = uigridlayout(controlLayout);
-            obj.CheckboxGrid.Layout.Row = 1;
+            obj.CheckboxGrid.Layout.Row = 4;
             obj.CheckboxGrid.ColumnWidth = {'1x'};
             obj.CheckboxGrid.RowSpacing = 2;
-
+            
+            % Clear and Select All buttons with labels (row 5 and 6)
             obj.ClearButton = uibutton(controlLayout, 'push', ...
-                'Text', 'Clear all', ...
+                'Text', 'Clear All', ...
                 'FontColor', 'red', ...
+                'Tooltip', 'Deselect all items', ...
                 'ButtonPushedFcn', @(btn, evt)obj.clearCheckboxes());
-            obj.ClearButton.Layout.Row = 2;
-
+            obj.ClearButton.Layout.Row = 5;
+            
             obj.AllButton = uibutton(controlLayout, 'push', ...
-                'Text', 'Select all', ...
+                'Text', 'Select All', ...
                 'FontColor', 'green', ...
+                'Tooltip', 'Select all items', ...
                 'ButtonPushedFcn', @(btn, evt)obj.allCheckboxes());
-            obj.AllButton.Layout.Row = 3;
-
-            % Create sizing mode dropdown
+            obj.AllButton.Layout.Row = 6;
+            
+            % Method selection label and dropdown (row 7 and 8)
+            lbl = uilabel(controlLayout, 'Text', 'Select Algorithm:');
+            lbl.Layout.Row = 7;
+            
             obj.MethodDropdown = uidropdown(controlLayout, ...
                 'Items', {'succesive', 'graph'}, ...
                 'Value', 'succesive', ...
                 'Tooltip', 'Select algorithm');
-            obj.MethodDropdown.Layout.Row = 4;  % Adjust rows below accordingly
-        
-            % Create Calculate button
+            obj.MethodDropdown.Layout.Row = 8;
+            
+            % Calculate button (row 9)
             obj.CalculateButton = uibutton(controlLayout, 'push', ...
                 'Text', 'Calculate Overlay', ...
                 'ButtonPushedFcn', @(btn, evt)obj.calculate());
-            obj.CalculateButton.Layout.Row = 6;
+            obj.CalculateButton.Layout.Row = 10;
+
 
 
         end
@@ -110,6 +139,8 @@ classdef OverlayView < handle
         function onImLoad(obj)
             % Update panel
             obj.dataAvailable = true;
+            obj.controlPanel.Scrollable = 'off';
+            obj.controlPanel.Scrollable = 'on';  % Toggle to re-check scroll need
             imshow(obj.App.OverlayClass.imageArray{1}.data, 'Parent', obj.Axes);
         end
 
@@ -141,20 +172,18 @@ classdef OverlayView < handle
 
             % Default: nothing was calculated
             calculatedIdxs = [];
-        
+
             if ~isempty(obj.App.OverlayClass.lastIndices)
                 calculatedIdxs = obj.App.OverlayClass.lastIndices;
             end
-
-            disp(n)
         
             for i = 1:n
                 dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
                 isChecked = ismember(i, calculatedIdxs);
                 cb = uicheckbox(obj.CheckboxGrid, ...
                     'Text', dateStr, ...
-                    'Value', isChecked, ...
-                    'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                    'Value', true, ...
+                    'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged());
                 % Set font color depending on previous use
                 if isChecked
                     cb.FontColor = [0, 1, 0];  % green if used in last calculation
@@ -182,6 +211,7 @@ classdef OverlayView < handle
             % Scroll to bottom
             drawnow;  % Ensure UI updates immediately
         end
+
         function calculate(obj)            
             selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
@@ -194,7 +224,7 @@ classdef OverlayView < handle
 
             obj.CalculateButton.Text = 'Calculating...';
             obj.CalculateButton.Enable = 'off';
-            obj.StatusTextArea.Value = ""
+            obj.StatusTextArea.Value = "";
 
             drawnow;  % Force UI update
 
@@ -211,14 +241,24 @@ classdef OverlayView < handle
                     obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
                 end
             end            
-
+            
+            % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
+            % get min and max vals
+            minVal = min(scoreMatrix(:), [], 'omitnan');
+            maxVal = max(scoreMatrix(:), [], 'omitnan');
+            % Handle edge case where all entries are NaN or equal
+            if isempty(minVal) || isempty(maxVal) || maxVal <= minVal || isnan(minVal) || isnan(maxVal)
+                minVal = 0;
+                maxVal = 1;
+            end
+            
             h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
-            'MissingDataLabel', '', ...
-            'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN
-            'Colormap', copper, ...
-            'ColorLimits', [min(scoreMatrix(:), [], 'omitnan'), ...
-                            max(scoreMatrix(:), [], 'omitnan')]);
+                'MissingDataLabel', '', ...
+                'MissingDataColor', [0.8, 0.8, 0.8], ...
+                'Colormap', copper, ...
+                'ColorLimits', [minVal, maxVal]);
             disp(obj.App.OverlayClass.lastIndices);
             dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
             dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
@@ -229,11 +269,16 @@ classdef OverlayView < handle
             overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
 
             imshow(overlay, 'Parent', obj.Axes);
+
+            % --- Graph display ---
+            obj.App.OverlayClass.plotReachabilityGraph(obj.GraphAxes);
+
+            % --- update Groups ---
+            obj.updateGroups(obj.App.OverlayClass.groups);
             
             % --- Update exterior button, now differences can be calculated
             obj.App.CalculateDifferencesButton.Text = "Calculate Differences";
-            obj.App.CalculateDifferencesButton.Enable = 'on';
-   
+            obj.App.CalculateDifferencesButton.Enable = 'on';   
         end
     end    
 
@@ -249,14 +294,11 @@ classdef OverlayView < handle
             end
         end        
 
-        function onCheckboxChanged(obj, idx)
+        function onCheckboxChanged(obj)
             % Only proceed if we have valid previous data
             if isempty(obj.App.OverlayClass.lastIndices)
                 return;
-            end
-            if ~ismember(idx, obj.App.OverlayClass.lastIndices)
-                return;
-            end
+            end            
             
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
@@ -271,11 +313,46 @@ classdef OverlayView < handle
                 cla(obj.Axes);  % Clear if overlay couldn't be created
             end
         end
+        function updateGroups(obj, groups)
+            % groups: cell array of vectors with indices of items in each group
+            
+            numGroups = numel(groups);
+            groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
+            
+            % Update dropdown items
+            obj.GroupDropdown.Items = groupNames;
+                        
+            % Clear checkboxes (uncheck all)
+            obj.clearCheckboxes();
+            
+            % Attach callback for dropdown selection change
+            obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
+        end
+        function onGroupSelected(obj)
+            if isempty(obj.App.OverlayClass.groups)
+                return
+            end
+            selectedGroupName = obj.GroupDropdown.Value;
+            selectedGroupIndex = str2double(selectedGroupName);
+            
+            % Get indices of items in selected group
+            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
+            
+            % Loop through all checkboxes in the grid and update selection
+            for k = 1:numel(obj.Checkboxes)
+                if ismember(k, groupIndices)
+                    obj.Checkboxes(k).Value = true;
+                else
+                    obj.Checkboxes(k).Value = false;
+                end
+            end
+            obj.onCheckboxChanged();
+        end
     end
 
     methods (Static)
         function name = getName()
             name = 'Overlay';
-        end
+        end        
     end
 end

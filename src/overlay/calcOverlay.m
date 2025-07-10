@@ -14,6 +14,8 @@ classdef calcOverlay < handle
 
         % calculated transforms for overlay
         transforms  %% transforms which align all images in particular calculation
+        groups      %% one cell per group with the ids of the images
+        g       %% Graph how the images are connected based on the results
         
         % precomputed warp
         warpedImages
@@ -90,6 +92,38 @@ classdef calcOverlay < handle
             scoreMatrix = obj.scoreMatrix;  % Return the score matrix for further analysis
             scoreMatrix(isinf(scoreMatrix)) = NaN;
         end
+        function plotReachabilityGraph(obj, ax)
+            filteredImages = obj.imageArray(obj.lastIndices);
+            transformImageIDs = cellfun(@(im) im.id, filteredImages);
+        
+            % Determine identity transformation (tolerance for floating-point)
+            isIdentity = cellfun(@(T) norm(T - eye(3), 'fro') < 1e-10, obj.transforms);
+            identityIDs = transformImageIDs(isIdentity);  % datetime array
+        
+            % Create logical mask for graph nodes that match identity transforms
+            graphNodeIDs = obj.g.Nodes.Name;  % datetime array
+            isIdentityNode = ismember(graphNodeIDs, identityIDs);  % logical array
+        
+            % Plot graph
+            if numedges(obj.g) > 0
+                % Plot with edge labels if edges exist
+                p = plot(ax, obj.g, ...
+                    'Layout', 'force', ...
+                    'EdgeLabel', obj.g.Edges.Weight, ...
+                    'NodeLabel', obj.g.Nodes.Name);
+            else
+                % Plot without edge labels if no edges
+                p = plot(ax, obj.g, ...
+                    'Layout', 'force', ...
+                    'NodeLabel', obj.g.Nodes.Name);
+            end
+        
+            % Apply colors: 1 for false (blue), 2 for true (red)
+            p.NodeCData = double(isIdentityNode) + 1;
+        
+            % Title
+            title(ax, 'Clustered Reachability Graph with Edge Weights');
+        end
     end
 
     methods (Access = private)
@@ -97,7 +131,7 @@ classdef calcOverlay < handle
             filteredImages = obj.imageArray(obj.lastIndices);
             obj.lastOutput = estimateHomographiesSet.estimateHomographiesSuccessive(filteredImages, dispFunction);
 
-            % create score matrix
+            % --- Create Score Matrix ---
             % assume the output is ordered as the images are
             n = numel(obj.lastOutput);
             obj.scoreMatrix = inf(n+1);  % default to inf or NaN
@@ -110,24 +144,53 @@ classdef calcOverlay < handle
                 obj.scoreMatrix(i+1, i) = score;  % assume symmetric
             end
 
+            % --- Compute Cumulative Transforms ---
             obj.transforms = cell(1, length(filteredImages));
             obj.transforms{1} = eye(3);
             for i = 2:length(filteredImages)
                 obj.transforms{i} = obj.transforms{i-1} * obj.lastOutput{i-1}.H;
-                % transforms{i} = obj.lastOutput{i-1}.H; % -> use if all
-                % transforms reference to image one already!!
             end
+
+            ids = cellfun(@(im) im.id, filteredImages, 'UniformOutput', false);
+            scores = [];
+            for i = 1:n
+                scores(i) = obj.lastOutput{i}.score;
+            end
+
+            obj.g = estimateHomographiesSet.buildUndirectedGraph(ids(1:end-1), ids(2:end), scores);
+        
+            % --- Set Groups (cell with one element: lastIndices) ---
+            obj.groups = {obj.lastIndices};
         end
 
         function homographieGraphBased(obj, dispFunction)
             filteredImages = obj.imageArray(obj.lastIndices);
-            [obj.lastOutput, obj.scoreMatrix] = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages, dispFunction);
-
+            [tr, gr, obj.scoreMatrix, obj.g] = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages, dispFunction);
+            
+            imageIds = cellfun(@(im) im.id, filteredImages);
+            transformKeys = tr.keys;
             obj.transforms = cell(1, length(filteredImages));
-            obj.transforms{1} = eye(3);
-            for i = 2:length(filteredImages)
-                obj.transforms{i} = obj.lastOutput{i-1}.H;
+            % Map each key to the index in imageIds
+            [found, idxs] = ismember(string(transformKeys), string(imageIds));
+            
+            for k = 1:numel(transformKeys)
+                if found(k)
+                    obj.transforms{idxs(k)} = tr(transformKeys{k});
+                end
             end
+
+            % Convert group ID entries to indices in imageIds
+            indexedGroups = cell(size(gr));
+            for i = 1:numel(gr)
+                [found, idxs] = ismember(gr{i}, imageIds);
+                if ~all(found)
+                    warning('Some group IDs were not found in imageIds.');
+                end
+                indexedGroups{i} = idxs(found);  % optionally keep only valid indices
+            end
+
+
+
         end
 
         function warp(obj)

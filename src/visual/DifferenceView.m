@@ -20,6 +20,8 @@ classdef DifferenceView < handle
         BlocksizeLabel matlab.ui.control.Label
         AreaMinLabel matlab.ui.control.Label
         AreaMaxLabel matlab.ui.control.Label
+        GroupDropdown matlab.ui.control.DropDown
+        ApplyGroupButton matlab.ui.control.Button
     end
 
     methods
@@ -50,12 +52,27 @@ classdef DifferenceView < handle
             controlPanel.Layout.Column = 2;
         
             controlLayout = uigridlayout(controlPanel);
-            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
+            controlLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             controlLayout.ColumnWidth = {'1x'};
+
+            groupLayout = uigridlayout(controlLayout);
+            groupLayout.ColumnWidth = {'1x', '1x'};
+            groupLayout.RowHeight = {'1x'};
+            groupLayout.Layout.Row = 1;
+            
+            obj.GroupDropdown = uidropdown(groupLayout, ...
+                'Items', {}, ...               % initially empty
+                'Tooltip', 'Select a group');
+            obj.GroupDropdown.Layout.Column = 1;
+            % "Apply" button to apply selection (even if it's the same)
+            obj.ApplyGroupButton = uibutton(groupLayout, ...
+                'Text', 'Apply', ...
+                'ButtonPushedFcn', @(btn, evt)obj.onGroupSelected());
+            obj.ApplyGroupButton.Layout.Column = 2;
         
             % Create checkbox grid
             obj.CheckboxGrid = uigridlayout(controlLayout);
-            obj.CheckboxGrid.Layout.Row = 1;
+            obj.CheckboxGrid.Layout.Row = 2;
             obj.CheckboxGrid.ColumnWidth = {'1x'};
             obj.CheckboxGrid.RowSpacing = 2;
 
@@ -63,26 +80,26 @@ classdef DifferenceView < handle
                 'Text', 'Clear all', ...
                 'FontColor', 'red', ...
                 'ButtonPushedFcn', @(btn, evt)obj.clearCheckboxes());
-            obj.ClearButton.Layout.Row = 2;
+            obj.ClearButton.Layout.Row = 3;
 
             obj.AllButton = uibutton(controlLayout, 'push', ...
                 'Text', 'Select all', ...
                 'FontColor', 'green', ...
                 'ButtonPushedFcn', @(btn, evt)obj.allCheckboxes());
-            obj.AllButton.Layout.Row = 3;
+            obj.AllButton.Layout.Row = 4;
 
             % Create sizing mode dropdown
             obj.SizingModeDropdown = uidropdown(controlLayout, ...
                 'Items', {'Size to First Image', 'Fit All Images'}, ...
                 'Value', 'Size to First Image', ...
                 'Tooltip', 'Select overlay sizing mode');
-            obj.SizingModeDropdown.Layout.Row = 4;  % Adjust rows below accordingly
+            obj.SizingModeDropdown.Layout.Row = 5;  % Adjust rows below accordingly
         
             % Create Calculate button
             obj.CalculateButton = uibutton(controlLayout, 'push', ...
                 'Text', 'Calculate Overlay', ...
                 'ButtonPushedFcn', @(btn, evt)obj.calculate());
-            obj.CalculateButton.Layout.Row = 6;
+            obj.CalculateButton.Layout.Row = 7;
 
             % a lot of copy paste cause matlab is unable to have proper
             % coding conventions
@@ -91,13 +108,13 @@ classdef DifferenceView < handle
                 'Items', differenceEstimationFunctions.valid_methods, ...
                 'Value', {'absdiff'}, ...
                 'Tooltip', 'Select method of estimation');
-            obj.MethodDropDown.Layout.Row = 7;
+            obj.MethodDropDown.Layout.Row = 8;
 
             obj.SliderThreshold = uislider(controlLayout, ...
                 'Limits', [differenceEstimationFunctions.value_range_threshold(1), differenceEstimationFunctions.value_range_threshold(end)], ...
                 'Value', 0, ... %roundNiceTicks(differenceEstimationFunctions.value_range_threshold(1), differenceEstimationFunctions.value_range_threshold(end), 10), ...
                 'Tooltip', 'Adjust threshold for overlay calculation');
-            obj.SliderThreshold.Layout.Row = 8;
+            obj.SliderThreshold.Layout.Row = 10;
 
             obj.ThresholdLabel = uilabel(controlLayout, ...
                 'Text', 'Threshold');
@@ -107,7 +124,7 @@ classdef DifferenceView < handle
                 'Limits', [differenceEstimationFunctions.value_range_blockSize(1), differenceEstimationFunctions.value_range_blockSize(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_blockSize(1), differenceEstimationFunctions.value_range_blockSize(end), 1000), ...
                 'Tooltip', 'Adjust block size for processing');
-            obj.SliderBlockSize.Layout.Row = 10;
+            obj.SliderBlockSize.Layout.Row = 12;
 
             obj.BlocksizeLabel = uilabel(controlLayout, ...
                 'Text', 'Blocksize');
@@ -117,7 +134,7 @@ classdef DifferenceView < handle
                 'Limits', [differenceEstimationFunctions.value_range_areaMin(1), differenceEstimationFunctions.value_range_areaMin(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_areaMin(1), differenceEstimationFunctions.value_range_areaMin(end), 1000), ...
                 'Tooltip', 'Minimum area for overlay');
-            obj.SliderAreaMin.Layout.Row = 12;
+            obj.SliderAreaMin.Layout.Row = 14;
 
             obj.AreaMinLabel = uilabel(controlLayout, ...
                 'Text', 'Min Area');
@@ -127,7 +144,7 @@ classdef DifferenceView < handle
                 'Limits', [differenceEstimationFunctions.value_range_areaMax(1), differenceEstimationFunctions.value_range_areaMax(end)], ...
                 'Value', 1, ... %roundNiceTicks(differenceEstimationFunctions.value_range_areaMax(1), differenceEstimationFunctions.value_range_areaMax(end), 1000), ...
                 'Tooltip', 'Maximum area for overlay');
-            obj.SliderAreaMax.Layout.Row = 14;
+            obj.SliderAreaMax.Layout.Row = 16;
 
             obj.AreaMaxLabel = uilabel(controlLayout, ...
                 'Text', 'Max Area');
@@ -156,6 +173,7 @@ classdef DifferenceView < handle
             if ~obj.dataAvailable
                 return;
             end
+            obj.updateGroups(obj.App.OverlayClass.groups);
         
             % Clear old checkboxes from UI and memory
             delete(obj.CheckboxGrid.Children);
@@ -281,13 +299,69 @@ classdef DifferenceView < handle
             % Keep only those that were used in last calculation
             validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
-            useFirstImageSize = strcmp(obj.SizingModeDropdown.Value, 'Size to First Image');
             overlay = obj.App.DifferenceClass.createOverlay(validSelection);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else
                 cla(obj.Axes);  % Clear if overlay couldn't be created
             end
+        end
+        function updateGroups(obj, groups)
+            % groups: cell array of vectors with indices of items in each group
+            
+            numGroups = numel(groups);
+            groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
+            
+            % Update dropdown items
+            obj.GroupDropdown.Items = groupNames;
+                        
+            % Clear checkboxes (uncheck all)
+            obj.clearCheckboxes();
+            
+            % Attach callback for dropdown selection change
+            obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
+        end
+        function onGroupSelected(obj)
+            if isempty(obj.App.OverlayClass.groups)
+                return
+            end
+            selectedGroupName = obj.GroupDropdown.Value;
+            selectedGroupIndex = str2double(selectedGroupName);
+            
+            % Get indices of items in selected group
+            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
+            
+            % Loop through all checkboxes in the grid and update selection
+            for k = 1:numel(obj.Checkboxes)
+                if ismember(k, groupIndices)
+                    obj.Checkboxes(k).Value = true;
+                    obj.Checkboxes(k).Enable = 'on';
+                else
+                    obj.Checkboxes(k).Value = false;
+                    obj.Checkboxes(k).Enable = 'off';
+                end
+            end
+            obj.onCheckboxChanged();
+        end
+        function onApplyGroup(obj)
+            if isempty(obj.App.OverlayClass.groups)
+                return
+            end
+            selectedGroupName = obj.GroupDropdown.Value;
+            selectedGroupIndex = str2double(selectedGroupName);
+            
+            % Get indices of items in selected group
+            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
+            
+            % Loop through all checkboxes in the grid and update selection
+            for k = 1:numel(obj.Checkboxes)
+                if ismember(k, groupIndices)
+                    obj.Checkboxes(k).Value = true;
+                else
+                    obj.Checkboxes(k).Value = false;
+                end
+            end
+            obj.onCheckboxChanged();
         end
     end
 
