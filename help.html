@@ -44,17 +44,24 @@
         }
     </style>
     <script>
-        function closeHelp() {
-            try {
-                if (window.parent && typeof window.parent.postMessage === 'function') {
-                    window.matlab.postMessage({ type: 'closeHelp' });
-                } else {
-                    console.error("postMessage nicht verfügbar.");
-                }
-            } catch (e) {
-                console.error("Fehler beim Senden der Nachricht:", e);
+    function closeHelp() {
+        try {
+            console.log("Versuche, Nachricht an MATLAB zu senden...");
+            if (window.parent && window.parent.Matlab && typeof window.parent.Matlab.setData === 'function') {
+                window.parent.Matlab.setData({ type: 'closeHelp' });
+            } else {
+                console.error("MATLAB setData nicht verfügbar.");
             }
+        } catch (e) {
+            console.error("Fehler beim Senden der Nachricht:", e);
         }
+        console.log("Seite geladen");
+        document.querySelector('.close-button').addEventListener('click', () => {
+        console.log("Button wurde geklickt");
+        closeHelp();
+    });
+    }
+
     </script>
 </head>
 <body>
@@ -72,6 +79,27 @@
     <div class="step">
         <strong>3. Beenden:</strong> Mit „Beenden“ schließen Sie die App.
     </div>
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const closeBtn = document.querySelector(".close-button");
+        if (closeBtn) {
+            closeBtn.addEventListener("click", function () {
+                closeHelp();
+            });
+        } else {
+            console.warn("close-button nicht gefunden!");
+        }
+    });
 
+    function closeHelp() {
+        console.log("× wurde geklickt");
+        window.close(); // Schließt das aktuelle Fenster
+        // hier dein MATLAB-Code z. B.:
+        if (window.Matlab) {
+            window.Matlab.setData({ type: 'closeHelp' });
+        }
+    }
+</script>
 </body>
+
 </html>
