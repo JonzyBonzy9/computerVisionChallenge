@@ -61,7 +61,7 @@ classdef OverlayView < handle
             obj.GraphAxes = uiaxes(graphTab);
             obj.GraphAxes.XTick = [];
             obj.GraphAxes.YTick = [];
-            
+             
             % Store reference to matrixTab (if needed)
             obj.HeatmapPanel = matrixTab;  % reuse the existing property
 
@@ -267,22 +267,11 @@ classdef OverlayView < handle
             
             % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
-            % get min and max vals
-            minVal = min(scoreMatrix(:), [], 'omitnan');
-            maxVal = max(scoreMatrix(:), [], 'omitnan');
-            % Handle edge case where all entries are NaN or equal
-            if isempty(minVal) || isempty(maxVal) || maxVal <= minVal || isnan(minVal) || isnan(maxVal)
-                minVal = 0;
-                maxVal = 1;
-            end
             
             h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
                 'MissingDataLabel', '', ...
                 'MissingDataColor', [0.8, 0.8, 0.8], ...
-                'Colormap', copper, ...
-                'ColorLimits', [minVal, maxVal]);
-            disp(obj.App.OverlayClass.lastIndices);
+                'Colormap', copper);
             dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
             dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
             % Only show X-axis labels, hide Y-axis labels
