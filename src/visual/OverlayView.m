@@ -243,6 +243,7 @@ classdef OverlayView < handle
             end            
 
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf with NaN so it's ignored
             h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
             'MissingDataLabel', '', ...
             'MissingDataColor', [0.8, 0.8, 0.8], ...  % Light gray for NaN

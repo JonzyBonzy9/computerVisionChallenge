@@ -162,7 +162,7 @@ classdef calcOverlay < handle
             transformKeys = tr.keys;
             obj.transforms = cell(1, length(filteredImages));
             % Map each key to the index in imageIds
-            [found, idxs] = ismember([transformKeys{:}], imageIds);
+            [found, idxs] = ismember(string(transformKeys), string(imageIds));
             
             for k = 1:numel(transformKeys)
                 if found(k)
