@@ -54,7 +54,7 @@ classdef OverlayView < handle
             obj.StatusTextArea = uitextarea(consoleTab, ...
                 'Editable', 'off', ...
                 'FontName', 'Courier New', ...
-                'Value', {'Console output will appear here...'});  % For clarity
+                'Value', {'Load image folder, select the desired images and press Calculate Overlay to align the images to each other.', 'Console Output will appear here...' }); 
             
             % Use a placeholder for the graph view for now
             obj.GraphAxes = uiaxes(graphTab);
@@ -194,7 +194,8 @@ classdef OverlayView < handle
             % Reset the overlay view UI and state
         
             % Clear console
-            obj.StatusTextArea.Value = {'Console output will appear here...'};
+            obj.StatusTextArea.Value= {'Load image folder, select the desired images and press Calculate Overlay to align the images to each other.', 'Console Output will appear here...' }; 
+
         
             % Clear axes
             cla(obj.Axes);
@@ -308,18 +309,14 @@ classdef OverlayView < handle
         end        
 
         function onCheckboxChanged(obj)
-            % Only proceed if we have valid previous data
-            if isempty(obj.App.OverlayClass.lastIndices)
-                return;
-            end            
-            
+
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
-            
-            % Keep only those that were used in last calculation
-            validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
-            
-            overlay = obj.App.OverlayClass.createOverlay(validSelection);  
+
+            % % Keep only those that were used in last calculation
+            % validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
+
+            overlay = obj.App.OverlayClass.createOverlay(selected);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else

@@ -56,33 +56,53 @@ classdef calcOverlay < handle
         end
         function overlay = createOverlay(obj, idxs)
             disp("overlay")
-            % Only proceed if we have valid previous data
-            if isempty(obj.lastIndices)
-                overlay = [];  % or some default like zeros(...)
+
+            if isempty(idxs)
+                overlay = []
                 return;
             end
-                        
-            % Only keep indices that are were part of last calculation
-            validSelection = intersect(idxs, obj.lastIndices);
-            % transform to local indices matching filtered images array
-            [~, localIdxs] = ismember(validSelection, obj.lastIndices);
 
-            % Initialize overlay and alpha mask sum
-            [H, W, ~] = size(obj.warpedImages{1});
-            overlay = zeros(H, W, 3, 'double');
-            alphaMaskSum = zeros(H, W);
-            alpha = 0.5;
+            % Only proceed if we have valid previous data
+            if isempty(obj.lastIndices)
+                % No warping previously done — use raw image data directly
+                selectedImages = obj.imageArray(idxs);
 
-            for i = 1:length(obj.lastIndices)
-                if ~ismember(i, localIdxs)
-                    continue;
-                end
-
-                mask = obj.warpedMasks{i};
-                overlay = overlay + obj.warpedImages{i} .* alpha .* cat(3, mask, mask, mask);
-                alphaMaskSum = alphaMaskSum + alpha .* mask;
-            end
+                % Assume images are all same size; use the first as size reference
+                [H, W, ~] = size(selectedImages{1}.data);
+                overlay = zeros(H, W, 3, 'double');
+                alphaMaskSum = zeros(H, W);
+                alpha = 0.5;
         
+                for i = 1:length(selectedImages)
+                    img = im2double(selectedImages{i}.data);
+                    mask = true(H, W);  % full mask, no warping
+                    
+                    overlay = overlay + img .* alpha .* cat(3, mask, mask, mask);
+                    alphaMaskSum = alphaMaskSum + alpha .* mask;
+                end
+            else
+                            
+                % Only keep indices that are were part of last calculation
+                validSelection = intersect(idxs, obj.lastIndices);
+                % transform to local indices matching filtered images array
+                [~, localIdxs] = ismember(validSelection, obj.lastIndices);
+    
+                % Initialize overlay and alpha mask sum
+                [H, W, ~] = size(obj.warpedImages{1});
+                overlay = zeros(H, W, 3, 'double');
+                alphaMaskSum = zeros(H, W);
+                alpha = 0.5;
+    
+                for i = 1:length(obj.lastIndices)
+                    if ~ismember(i, localIdxs)
+                        continue;
+                    end
+    
+                    mask = obj.warpedMasks{i};
+                    overlay = overlay + obj.warpedImages{i} .* alpha .* cat(3, mask, mask, mask);
+                    alphaMaskSum = alphaMaskSum + alpha .* mask;
+                end
+            end
             % Normalize and convert
             alphaMaskSum(alphaMaskSum == 0) = 1;
             overlay = overlay ./ cat(3, alphaMaskSum, alphaMaskSum, alphaMaskSum);
