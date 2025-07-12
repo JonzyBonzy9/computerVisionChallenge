@@ -346,8 +346,12 @@ classdef OverlayView < handle
             if selectedGroupName == 'All'
                 % Loop through all checkboxes in the grid and update selection
                 for k = 1:numel(obj.Checkboxes)
-                    obj.Checkboxes(k).Value = true;
                     obj.Checkboxes(k).Enable = 'on';
+                    lastIndices = obj.App.OverlayClass.lastIndices;
+                    if ismember(k, lastIndices)
+                        obj.Checkboxes(k).Value = true;
+                        obj.onCheckboxChanged();
+                    end
                 end
             else
                 selectedGroupIndex = str2double(selectedGroupName);

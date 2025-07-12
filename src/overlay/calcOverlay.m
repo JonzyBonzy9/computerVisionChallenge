@@ -180,9 +180,10 @@ classdef calcOverlay < handle
             end
 
             % Convert group ID entries to indices in imageIds
+            allImageIds = cellfun(@(im) im.id, obj.imageArray());
             indexedGroups = cell(size(gr));
             for i = 1:numel(gr)
-                [found, idxs] = ismember(gr{i}, imageIds);
+                [found, idxs] = ismember(gr{i}, allImageIds);
                 if ~all(found)
                     warning('Some group IDs were not found in imageIds.');
                 end
@@ -190,8 +191,6 @@ classdef calcOverlay < handle
             end
 
             obj.groups = indexedGroups;
-
-
 
         end
 
