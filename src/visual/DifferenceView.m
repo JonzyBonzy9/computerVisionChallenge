@@ -210,6 +210,16 @@ classdef DifferenceView < handle
                 obj.Checkboxes(i) = cb;
             end
         end
+        
+
+        function reset(obj)
+       
+            % Clear axes
+            cla(obj.Axes);           
+
+        end
+
+
         function calculate(obj)            
             selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
