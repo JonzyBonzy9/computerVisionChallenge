@@ -256,8 +256,10 @@ classdef OverlayView < handle
             for i = 1:length(obj.Checkboxes)
                 if ismember(i, selectedIndices)
                     obj.Checkboxes(i).FontColor = [0, 1, 0];  % Green
+                    obj.Checkboxes(i).Value = true;
                 else
-                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black
+                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % White
+                    obj.Checkboxes(i).Value = false;
                 end
             end         
             obj.onCheckboxChanged();
@@ -295,14 +297,14 @@ classdef OverlayView < handle
         function clearCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
+                obj.onCheckboxChanged();  % manually trigger visualization update
             end
-            obj.onCheckboxChanged();  % manually trigger visualization update
         end
         function allCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
+                obj.onCheckboxChanged();  % manually trigger visualization update
             end
-            obj.onCheckboxChanged();  % manually trigger visualization update
         end        
 
         function onCheckboxChanged(obj)
@@ -332,9 +334,6 @@ classdef OverlayView < handle
             
             % Update dropdown items
             obj.GroupDropdown.Items = [{'All'}, groupNames];   
-            
-            % Clear checkboxes (uncheck all)
-            obj.clearCheckboxes();
             
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();

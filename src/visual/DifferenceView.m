@@ -137,7 +137,6 @@ classdef DifferenceView < handle
                 'Text', 'Max Area');
             obj.AreaMaxLabel.Layout.Row = 15;
             
-
         end
 
         function onImLoad(obj)
@@ -186,16 +185,19 @@ classdef DifferenceView < handle
                 isChecked = ismember(i, calculatedIdxs);
                 cb = uicheckbox(obj.CheckboxGrid, ...
                     'Text', dateStr, ...
-                    'Value', isChecked, ...
+                    'Value', false, ...
                     'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
                 % Set font color depending on previous use
                 if isChecked
                     cb.FontColor = [0, 1, 0];  % green if used in last calculation
+                    cb.Enable = true;
                 else
-                    cb.FontColor = [1, 1, 1];  % Black otherwise
+                    cb.FontColor = [1, 1, 1];  % White otherwise
+                    cb.Enable = false;
                 end
                 obj.Checkboxes(i) = cb;
             end
+
         end
         
 
@@ -246,13 +248,9 @@ classdef DifferenceView < handle
         function clearCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
+                obj.onCheckboxChanged();
             end
         end
-        function allCheckboxes(obj)
-            for i = 1:length(obj.Checkboxes)
-                obj.Checkboxes(i).Value = true;
-            end
-        end        
 
         function createBoundaryOverlay(~, parent, overlay, mask)
             imshow(overlay, 'Parent', parent);
@@ -282,13 +280,17 @@ classdef DifferenceView < handle
         end
 
         function onCheckboxChanged(obj, idx)
-            % Only proceed if we have valid previous data
-            if isempty(obj.App.DifferenceClass.lastIndices)
-                return;
-            end
-            if ~ismember(idx, obj.App.DifferenceClass.lastIndices)
-                return;
-            end
+            % % Only proceed if we have valid previous data
+            % if isempty(obj.App.DifferenceClass.lastIndices) || ~ismember(idx, obj.App.DifferenceClass.lastIndices)
+            %     % Revert the current checkbox selection
+            %     obj.Checkboxes(idx).Value = false;
+            % 
+            %     % Show warning
+            %     uialert(obj.App.UIFigure, ...
+            %         'No data for the selected index.', ...
+            %         'No data');          
+            %     return;
+            % end
             
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
@@ -308,7 +310,7 @@ classdef DifferenceView < handle
             % Keep only those that were used in last calculation
             validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
-            overlay = obj.App.DifferenceClass.createOverlay(validSelection);  
+            overlay = obj.App.OverlayClass.createOverlay(validSelection);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else
@@ -324,9 +326,6 @@ classdef DifferenceView < handle
             % Update dropdown items
             obj.GroupDropdown.Items = [{'All'}, groupNames];      
             
-            % Clear checkboxes (uncheck all)
-            obj.clearCheckboxes();
-            
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
         end
@@ -340,6 +339,7 @@ classdef DifferenceView < handle
                 for k = 1:numel(obj.Checkboxes)
                     obj.Checkboxes(k).Value = false;
                     obj.Checkboxes(k).Enable = 'on';
+                    obj.onCheckboxChanged();
                 end
             else
                 selectedGroupIndex = str2double(selectedGroupName);
@@ -352,13 +352,14 @@ classdef DifferenceView < handle
                     if ismember(k, groupIndices)
                         obj.Checkboxes(k).Value = false;
                         obj.Checkboxes(k).Enable = 'on';
+                        obj.onCheckboxChanged();
                     else
                         obj.Checkboxes(k).Value = false;
                         obj.Checkboxes(k).Enable = 'off';
+                        obj.onCheckboxChanged();
                     end
                 end
             end
-            obj.onCheckboxChanged();
         end
     end
 
