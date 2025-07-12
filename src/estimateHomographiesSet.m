@@ -23,10 +23,10 @@ classdef estimateHomographiesSet
             numImages = length(imageArray);
         
             % Sort images by ID
-            ids = cellfun(@(x) x.id, imageArray, 'UniformOutput', false);  % cell array of datetime
-            ids_dt = [ids{:}];  % concatenate into datetime array
-            [~, sortIdx] = sort(ids_dt);
-            imageArray = imageArray(sortIdx);
+            % ids = cellfun(@(x) x.id, imageArray, 'UniformOutput', false);  % cell array of datetime
+            % ids_dt = [ids{:}];  % concatenate into datetime array
+            % [~, sortIdx] = sort(ids_dt);
+            % imageArray = imageArray(sortIdx);
 
             % loop over image pairs
             for i = 1:numImages - 1
@@ -92,26 +92,39 @@ classdef estimateHomographiesSet
                     if i ~= j
                         dispfunc("------- comparing %s to %s -------\n",string(imageArray{i}.id),string(imageArray{j}.id))
                         % ======= Attempt 1: SURF (strictest) =======
-                        dispfunc("INFO: Trying to estimate homography\n");
+                        dispfunc("Trying SURF with MetricThreshold = 1000, MaxRatio = 0.65...\n");
                         [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                             'FeatureExtractionMethod', "SURF", ...
                             'MetricThreshold', 1000, ...
                             'MaxRatio', 0.65, ...
-                            'MaxNumTrials', 5000, ...
+                            'MaxNumTrials', 30000, ...
                             'Confidence', 98.0, ...
                             'MaxDistance', 6, ...
                             'dispfunc', dispfunc);
 
-                        % ======= Attempt 2: SURF (more tolerant) =======
+                        % ======= Attempt 2: SURF (medium leniency) =======
                         if ~success
-                            dispfunc("INFO: Retrying homography estimation with more lenient parameters\n");
+                            dispfunc("Retrying SURF with MetricThreshold = 700, MaxRatio = 0.68...\n");
+                            [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
+                                'FeatureExtractionMethod', "SURF", ...
+                                'MetricThreshold', 700, ...
+                                'MaxRatio', 0.68, ...
+                                'MaxNumTrials', 35000, ...
+                                'Confidence', 97.0, ...
+                                'MaxDistance', 7, ...
+                                'dispfunc', dispfunc);
+                        end
+
+                        % ======= Attempt 3: SURF (most tolerant) =======
+                        if ~success
+                            dispfunc("Retrying SURF with MetricThreshold = 500, MaxRatio = 0.71...\n");
                             [H, inlierPts1, ~, inlierRatio, success] = estimateHomographyPair(img1, img2, ...
                                 'FeatureExtractionMethod', "SURF", ...
                                 'MetricThreshold', 500, ...
-                                'MaxRatio', 0.7, ...
-                                'MaxNumTrials', 10000, ...
+                                'MaxRatio', 0.71, ...
+                                'MaxNumTrials', 40000, ...
                                 'Confidence', 96.0, ...
-                                'MaxDistance', 8, ...
+                                'MaxDistance', 7, ...
                                 'dispfunc', dispfunc);
                         end
                         
@@ -271,18 +284,18 @@ function [optimalPath, pathHomographies,status, totalScore] = findOptimalPathWit
         nodeNames = string(G.Nodes.Name);
         % Check if both start and end nodes exist in the graph
         if ~any(nodeNames == startId) || ~any(nodeNames == endId)
-            dispfunc('ERROR: graph does not contain one or both nodes: %s → %s', startId, endId);
+            dispfunc('Graph does not contain one or both nodes: %s → %s', startId, endId);
         else
             % Compute the shortest path between startId and endId
             [optimalPath, totalScore] = shortestpath(G, startId, endId);
         end
     catch ME
         % Handle unexpected errors during shortest path computation
-        dispfunc('ERROR: unexpected error during shortest path, %s', ME.message);
+        dispfunc('Unexpected error during shortest path: %s', ME.message);
     end
     % Check if an optimal path has been found
     if isempty(optimalPath)
-        dispfunc('ERROR: no path found between %s and %s.', startId, endId);
+        dispfunc('No path found between %s and %s.', startId, endId);
         return;
     end
     % Get list of homographies on the optimal path
@@ -296,7 +309,7 @@ function [optimalPath, pathHomographies,status, totalScore] = findOptimalPathWit
         else
             % Handle missing edges by adding an identity matrix
             pathHomographies{end+1} = eye(3);
-            dispfunc('WARNING: missing edge for key %s', key);
+            dispfunc('Missing edge for key %s', key);
         end    
     end   
     % set status as successful
@@ -320,11 +333,11 @@ function score = calcScore(inlierRatio,inlierPts,success,dispfunc)
         % Calculate final score as the inverse of the raw score
         score = 1/rawScore; 
         % Display success message with inlier ratio and count
-        dispfunc("INFO: successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
+        dispfunc("successful calculation with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
     else
         % Assign high score if ransac is unsuccessful
         score = inf; 
         % Display failure message with inlier ratio and count
-        dispfunc("INFO: calculation failed with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
+        dispfunc("calculation failed with inlier ratio (%.2f) and #inliers (%d)\n", inlierRatio, length(inlierPts));
     end
 end

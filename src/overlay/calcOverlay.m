@@ -36,15 +36,15 @@ classdef calcOverlay < handle
         end
         function obj = calculate(obj, idxs, method, dispFunction)
             if nargin < 3
-                method = 'successive';  % or whatever your default is
+                method = 'succesive';  % or whatever your default is
             end
             if nargin < 4
                 dispFunction = @fprintf;
             end
             obj.lastIndices = idxs;
             switch method
-                case 'successive'
-                    obj.homographiesuccessive(dispFunction);
+                case 'succesive'
+                    obj.homographieSuccesive(dispFunction);
                 case 'graph'
                     obj.homographieGraphBased(dispFunction);
             end
@@ -90,7 +90,7 @@ classdef calcOverlay < handle
         end
         function scoreMatrix = createScoreConfusion(obj)
             scoreMatrix = obj.scoreMatrix;  % Return the score matrix for further analysis
-            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
+            scoreMatrix(isinf(scoreMatrix)) = NaN;
         end
         function plotReachabilityGraph(obj, ax)
             filteredImages = obj.imageArray(obj.lastIndices);
@@ -127,7 +127,7 @@ classdef calcOverlay < handle
     end
 
     methods (Access = private)
-        function homographiesuccessive(obj, dispFunction)
+        function homographieSuccesive(obj, dispFunction)
             filteredImages = obj.imageArray(obj.lastIndices);
             obj.lastOutput = estimateHomographiesSet.estimateHomographiesSuccessive(filteredImages, dispFunction);
 
@@ -180,17 +180,16 @@ classdef calcOverlay < handle
             end
 
             % Convert group ID entries to indices in imageIds
-            allImageIds = cellfun(@(im) im.id, obj.imageArray());
             indexedGroups = cell(size(gr));
             for i = 1:numel(gr)
-                [found, idxs] = ismember(gr{i}, allImageIds);
+                [found, idxs] = ismember(gr{i}, imageIds);
                 if ~all(found)
                     warning('Some group IDs were not found in imageIds.');
                 end
                 indexedGroups{i} = idxs(found);  % optionally keep only valid indices
             end
 
-            obj.groups = indexedGroups;
+
 
         end
 
