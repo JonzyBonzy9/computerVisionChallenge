@@ -337,9 +337,11 @@ classdef DifferenceView < handle
             if selectedGroupName == 'All'
                 % Loop through all checkboxes in the grid and update selection
                 for k = 1:numel(obj.Checkboxes)
-                    obj.Checkboxes(k).Value = false;
-                    obj.Checkboxes(k).Enable = 'on';
-                    obj.onCheckboxChanged();
+                    if ismember(k, obj.App.OverlayClass.lastIndices)
+                        obj.Checkboxes(k).Value = false;
+                        obj.Checkboxes(k).Enable = 'on';
+                        obj.onCheckboxChanged();
+                    end
                 end
             else
                 selectedGroupIndex = str2double(selectedGroupName);
