@@ -146,34 +146,29 @@ classdef TimeSliderOverlayView < handle
                 obj.imCheck.Value = true;
                 % get data into efficient image stack for masks
                 if obj.App.DifferenceClass.resultAvailable
-                    numImages = numel(indices);
-                    maskList = cell(1, numImages);
-                    maskIndexTable = obj.App.DifferenceClass.lastIndices;  % Nx2 array
-                    disp(maskIndexTable)
-                    for k = 1:numImages
+                    maskList = cell(1, numel(indices));
+                    for k = 1:numel(indices)
                         currentIndex = indices(k);
-                    
-                        % Try to find a mask between current and next index (if there is a next)
-                        if k < numImages
-                            pair = [currentIndex, indices(k+1)];
-                            % Check for exact match in either order
-                            match = ismember(maskIndexTable, pair);
-                    
-                            if any(match)
-                                % If match found, get mask
-                                maskList{k} = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
-                            else
-                                % No match: use zero-mask (same size as current image)
-                                imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
-                                maskList{k} = zeros(imgSize(1), imgSize(2));
-                            end
-                        else
-                            % No mask for the last image (no i+1) — fill with zeros
+                        match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
+                        disp(currentIndex)
+                        disp(match)
+                        if match(end)
+                            disp("end")
                             imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
                             maskList{k} = zeros(imgSize(1), imgSize(2));
+                        elseif any(match)
+                            disp("match found")
+                            disp(find(match,1))
+                            maskList{k} = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
+                        elseif k==1
+                            disp("nothing added yet")
+                            imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
+                            maskList{k} = zeros(imgSize(1), imgSize(2));
+                        else
+                            disp("reverting to last element")
+                            maskList{k} = maskList{k-1};
                         end
                     end
-
                     obj.maskStack = cat(3, maskList{:});
                     obj.diffCheck.Enable = 'on';
                     obj.diffCheck.Value = true;
