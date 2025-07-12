@@ -138,8 +138,6 @@ classdef TimeSliderOverlayView < handle
                 selectedGroupName = obj.GroupDropdown.Value;
                 selectedGroupIndex = str2double(selectedGroupName);
                 disp(selectedGroupIndex)
-                disp(class(obj.App.OverlayClass.groups))
-                disp(obj.App.OverlayClass.groups)
                 indices = obj.App.OverlayClass.groups{selectedGroupIndex};
                 filteredImages = obj.App.OverlayClass.warpedImages(indices);
                 obj.imageStack = cat(4, filteredImages{:});
