@@ -133,6 +133,9 @@ classdef TimeSliderOverlayView < handle
 
         function update(obj)            
             % get data into efficient image stack for images
+            disp("update")
+            disp(obj.App.OverlayClass.resultAvailable);
+            disp("...")
             if obj.App.OverlayClass.resultAvailable
                 obj.updateGroups(obj.App.OverlayClass.groups);
                 selectedGroupName = obj.GroupDropdown.Value;
@@ -145,12 +148,16 @@ classdef TimeSliderOverlayView < handle
                 obj.imCheck.Enable = 'on';
                 obj.imCheck.Value = true;
                 % get data into efficient image stack for masks
+                disp(obj.App.DifferenceClass.resultAvailable)
                 if obj.App.DifferenceClass.resultAvailable
+                    disp("starting masks...")
                     maskList = cell(1, numel(indices));
-                    for k = 1:numel(indices)
+                    for k = 1:numel(indices)                        
                         currentIndex = indices(k);
                         match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
                         disp(currentIndex)
+                        disp(obj.App.DifferenceClass.lastIndices)
+                        disp("match:")
                         disp(match)
                         if match(end)
                             disp("end")
@@ -164,9 +171,12 @@ classdef TimeSliderOverlayView < handle
                             disp("nothing added yet")
                             imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
                             maskList{k} = zeros(imgSize(1), imgSize(2));
+                        else
+                            disp("reverting to last element")
+                            maskList{k} = maskList{k-1};
                         end
                     end
-
+                    disp("end of masks")
                     obj.maskStack = cat(3, maskList{:});
                     obj.diffCheck.Enable = 'on';
                     obj.diffCheck.Value = true;
