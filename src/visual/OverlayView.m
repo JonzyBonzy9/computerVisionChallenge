@@ -12,7 +12,6 @@ classdef OverlayView < handle
         CalculateButton matlab.ui.control.Button
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
-        ApplyGroupButton     matlab.ui.control.Button
         MethodDropdown  matlab.ui.control.DropDown
         StatusTextArea
         GroupDropdown   matlab.ui.control.DropDown
@@ -55,7 +54,7 @@ classdef OverlayView < handle
             obj.StatusTextArea = uitextarea(consoleTab, ...
                 'Editable', 'off', ...
                 'FontName', 'Courier New', ...
-                'Value', {'Console output will appear here...'});  % For clarity
+                'Value', {'Load image folder, select the desired images and press Calculate Overlay to align the images to each other.', 'Console Output will appear here...' }); 
             
             % Use a placeholder for the graph view for now
             obj.GraphAxes = uiaxes(graphTab);
@@ -84,14 +83,9 @@ classdef OverlayView < handle
             groupLayout.Layout.Row = 2;
             
             obj.GroupDropdown = uidropdown(groupLayout, ...
-                'Items', {}, ...               % initially empty
+                'Items', {'All'}, ...               % initially empty
                 'Tooltip', 'Select a group');
             obj.GroupDropdown.Layout.Column = 1;
-            % "Apply" button to apply selection (even if it's the same)
-            obj.ApplyGroupButton = uibutton(groupLayout, ...
-                'Text', 'Apply', ...
-                'ButtonPushedFcn', @(btn, evt)obj.onGroupSelected());
-            obj.ApplyGroupButton.Layout.Column = 2;
             
             lbl = uilabel(controlLayout, 'Text', 'Select Items:');
             lbl.Layout.Row = 3;
@@ -192,13 +186,16 @@ classdef OverlayView < handle
                 end
                 obj.Checkboxes(i) = cb;
             end
+            obj.onCheckboxChanged();
+
         end
 
         function reset(obj)
             % Reset the overlay view UI and state
         
             % Clear console
-            obj.StatusTextArea.Value = {'Console output will appear here...'};
+            obj.StatusTextArea.Value= {'Load image folder, select the desired images and press Calculate Overlay to align the images to each other.', 'Console Output will appear here...' }; 
+
         
             % Clear axes
             cla(obj.Axes);
@@ -259,11 +256,14 @@ classdef OverlayView < handle
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
                 if ismember(i, selectedIndices)
-                    obj.Checkboxes(i).FontColor = [0, 1, 0];  % Blue
+                    obj.Checkboxes(i).FontColor = [0, 1, 0];  % Green
+                    obj.Checkboxes(i).Value = true;
                 else
-                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
+                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % White
+                    obj.Checkboxes(i).Value = false;
                 end
-            end            
+            end         
+            obj.onCheckboxChanged();
             
             % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
@@ -300,27 +300,22 @@ classdef OverlayView < handle
                 obj.Checkboxes(i).Value = false;
             end
             obj.onCheckboxChanged();  % manually trigger visualization update
+
         end
         function allCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
             end
             obj.onCheckboxChanged();  % manually trigger visualization update
+
         end        
 
         function onCheckboxChanged(obj)
-            % Only proceed if we have valid previous data
-            if isempty(obj.App.OverlayClass.lastIndices)
-                return;
-            end            
-            
+
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
-            
-            % Keep only those that were used in last calculation
-            validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
-            
-            overlay = obj.App.OverlayClass.createOverlay(validSelection);  
+
+            overlay = obj.App.OverlayClass.createOverlay(selected);  
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else
@@ -334,10 +329,7 @@ classdef OverlayView < handle
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
             
             % Update dropdown items
-            obj.GroupDropdown.Items = groupNames;
-                        
-            % Clear checkboxes (uncheck all)
-            obj.clearCheckboxes();
+            obj.GroupDropdown.Items = [{'All'}, groupNames];   
             
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
@@ -347,17 +339,30 @@ classdef OverlayView < handle
                 return
             end
             selectedGroupName = obj.GroupDropdown.Value;
-            selectedGroupIndex = str2double(selectedGroupName);
+            if selectedGroupName == 'All'
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
+                    obj.Checkboxes(k).Enable = 'on';
+                    lastIndices = obj.App.OverlayClass.lastIndices;
+                    if ismember(k, lastIndices)
+                        obj.Checkboxes(k).Value = true;
+                    end
+                end
+            else
+                selectedGroupIndex = str2double(selectedGroupName);
+                
+                % Get indices of items in selected group
+                groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
             
-            % Get indices of items in selected group
-            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
-            
-            % Loop through all checkboxes in the grid and update selection
-            for k = 1:numel(obj.Checkboxes)
-                if ismember(k, groupIndices)
-                    obj.Checkboxes(k).Value = true;
-                else
-                    obj.Checkboxes(k).Value = false;
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
+                    if ismember(k, groupIndices)
+                        obj.Checkboxes(k).Value = true;
+                        obj.Checkboxes(k).Enable = 'on';
+                    else
+                        obj.Checkboxes(k).Value = false;
+                        obj.Checkboxes(k).Enable = 'off';
+                    end
                 end
             end
             obj.onCheckboxChanged();
