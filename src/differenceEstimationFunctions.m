@@ -87,6 +87,7 @@ classdef differenceEstimationFunctions < handle
                                 
             end
             differenceMasks = obj.differenceMasks;
+            obj.resultAvailable = true;
         end
 
         function mask = getMask(obj, id)
