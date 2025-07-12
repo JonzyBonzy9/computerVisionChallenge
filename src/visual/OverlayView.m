@@ -12,7 +12,6 @@ classdef OverlayView < handle
         CalculateButton matlab.ui.control.Button
         ClearButton     matlab.ui.control.Button
         AllButton       matlab.ui.control.Button
-        ApplyGroupButton     matlab.ui.control.Button
         MethodDropdown  matlab.ui.control.DropDown
         StatusTextArea
         GroupDropdown   matlab.ui.control.DropDown
@@ -84,14 +83,9 @@ classdef OverlayView < handle
             groupLayout.Layout.Row = 2;
             
             obj.GroupDropdown = uidropdown(groupLayout, ...
-                'Items', {}, ...               % initially empty
+                'Items', {'All'}, ...               % initially empty
                 'Tooltip', 'Select a group');
             obj.GroupDropdown.Layout.Column = 1;
-            % "Apply" button to apply selection (even if it's the same)
-            obj.ApplyGroupButton = uibutton(groupLayout, ...
-                'Text', 'Apply', ...
-                'ButtonPushedFcn', @(btn, evt)obj.onGroupSelected());
-            obj.ApplyGroupButton.Layout.Column = 2;
             
             lbl = uilabel(controlLayout, 'Text', 'Select Items:');
             lbl.Layout.Row = 3;
@@ -192,6 +186,8 @@ classdef OverlayView < handle
                 end
                 obj.Checkboxes(i) = cb;
             end
+            obj.onCheckboxChanged();
+
         end
 
         function reset(obj)
@@ -259,11 +255,12 @@ classdef OverlayView < handle
             % update checkboxes to reflect indices
             for i = 1:length(obj.Checkboxes)
                 if ismember(i, selectedIndices)
-                    obj.Checkboxes(i).FontColor = [0, 1, 0];  % Blue
+                    obj.Checkboxes(i).FontColor = [0, 1, 0];  % Green
                 else
-                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black (default)
+                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % Black
                 end
-            end            
+            end         
+            obj.onCheckboxChanged();
             
             % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
@@ -334,8 +331,8 @@ classdef OverlayView < handle
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
             
             % Update dropdown items
-            obj.GroupDropdown.Items = groupNames;
-                        
+            obj.GroupDropdown.Items = [{'All'}, groupNames];   
+            
             % Clear checkboxes (uncheck all)
             obj.clearCheckboxes();
             
@@ -347,17 +344,27 @@ classdef OverlayView < handle
                 return
             end
             selectedGroupName = obj.GroupDropdown.Value;
-            selectedGroupIndex = str2double(selectedGroupName);
-            
-            % Get indices of items in selected group
-            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
-            
-            % Loop through all checkboxes in the grid and update selection
-            for k = 1:numel(obj.Checkboxes)
-                if ismember(k, groupIndices)
+            if selectedGroupName == 'All'
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
                     obj.Checkboxes(k).Value = true;
-                else
-                    obj.Checkboxes(k).Value = false;
+                    obj.Checkboxes(k).Enable = 'on';
+                end
+            else
+                selectedGroupIndex = str2double(selectedGroupName);
+                
+                % Get indices of items in selected group
+                groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
+            
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
+                    if ismember(k, groupIndices)
+                        obj.Checkboxes(k).Value = true;
+                        obj.Checkboxes(k).Enable = 'on';
+                    else
+                        obj.Checkboxes(k).Value = false;
+                        obj.Checkboxes(k).Enable = 'off';
+                    end
                 end
             end
             obj.onCheckboxChanged();

@@ -9,7 +9,6 @@ classdef DifferenceView < handle
         Checkboxes      matlab.ui.control.CheckBox
         CalculateButton matlab.ui.control.Button
         ClearButton     matlab.ui.control.Button
-        AllButton       matlab.ui.control.Button
         SizingModeDropdown matlab.ui.control.DropDown
         MethodDropDown     matlab.ui.control.DropDown
         SliderThreshold matlab.ui.control.Slider
@@ -21,7 +20,6 @@ classdef DifferenceView < handle
         AreaMinLabel matlab.ui.control.Label
         AreaMaxLabel matlab.ui.control.Label
         GroupDropdown matlab.ui.control.DropDown
-        ApplyGroupButton matlab.ui.control.Button
     end
 
     methods
@@ -61,14 +59,9 @@ classdef DifferenceView < handle
             groupLayout.Layout.Row = 1;
             
             obj.GroupDropdown = uidropdown(groupLayout, ...
-                'Items', {}, ...               % initially empty
+                'Items', {'All'}, ...              
                 'Tooltip', 'Select a group');
             obj.GroupDropdown.Layout.Column = 1;
-            % "Apply" button to apply selection (even if it's the same)
-            obj.ApplyGroupButton = uibutton(groupLayout, ...
-                'Text', 'Apply', ...
-                'ButtonPushedFcn', @(btn, evt)obj.onGroupSelected());
-            obj.ApplyGroupButton.Layout.Column = 2;
         
             % Create checkbox grid
             obj.CheckboxGrid = uigridlayout(controlLayout);
@@ -81,12 +74,6 @@ classdef DifferenceView < handle
                 'FontColor', 'red', ...
                 'ButtonPushedFcn', @(btn, evt)obj.clearCheckboxes());
             obj.ClearButton.Layout.Row = 3;
-
-            obj.AllButton = uibutton(controlLayout, 'push', ...
-                'Text', 'Select all', ...
-                'FontColor', 'green', ...
-                'ButtonPushedFcn', @(btn, evt)obj.allCheckboxes());
-            obj.AllButton.Layout.Row = 4;
 
             % Create sizing mode dropdown
             obj.SizingModeDropdown = uidropdown(controlLayout, ...
@@ -306,6 +293,18 @@ classdef DifferenceView < handle
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
             
+            % Enforce max 2 selections
+            if numel(selected) > 2
+                % Revert the current checkbox selection
+                obj.Checkboxes(idx).Value = false;
+        
+                % Show warning
+                uialert(obj.App.UIFigure, ...
+                    'You can only select up to two images.', ...
+                    'Selection Limit');
+                return;
+            end
+
             % Keep only those that were used in last calculation
             validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
             
@@ -323,8 +322,8 @@ classdef DifferenceView < handle
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
             
             % Update dropdown items
-            obj.GroupDropdown.Items = groupNames;
-                        
+            obj.GroupDropdown.Items = [{'All'}, groupNames];      
+            
             % Clear checkboxes (uncheck all)
             obj.clearCheckboxes();
             
@@ -336,39 +335,27 @@ classdef DifferenceView < handle
                 return
             end
             selectedGroupName = obj.GroupDropdown.Value;
-            selectedGroupIndex = str2double(selectedGroupName);
-            
-            % Get indices of items in selected group
-            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
-            
-            % Loop through all checkboxes in the grid and update selection
-            for k = 1:numel(obj.Checkboxes)
-                if ismember(k, groupIndices)
-                    obj.Checkboxes(k).Value = true;
+            if selectedGroupName == 'All'
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
+                    obj.Checkboxes(k).Value = false;
                     obj.Checkboxes(k).Enable = 'on';
-                else
-                    obj.Checkboxes(k).Value = false;
-                    obj.Checkboxes(k).Enable = 'off';
                 end
-            end
-            obj.onCheckboxChanged();
-        end
-        function onApplyGroup(obj)
-            if isempty(obj.App.OverlayClass.groups)
-                return
-            end
-            selectedGroupName = obj.GroupDropdown.Value;
-            selectedGroupIndex = str2double(selectedGroupName);
+            else
+                selectedGroupIndex = str2double(selectedGroupName);
+                
+                % Get indices of items in selected group
+                groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
             
-            % Get indices of items in selected group
-            groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
-            
-            % Loop through all checkboxes in the grid and update selection
-            for k = 1:numel(obj.Checkboxes)
-                if ismember(k, groupIndices)
-                    obj.Checkboxes(k).Value = true;
-                else
-                    obj.Checkboxes(k).Value = false;
+                % Loop through all checkboxes in the grid and update selection
+                for k = 1:numel(obj.Checkboxes)
+                    if ismember(k, groupIndices)
+                        obj.Checkboxes(k).Value = false;
+                        obj.Checkboxes(k).Enable = 'on';
+                    else
+                        obj.Checkboxes(k).Value = false;
+                        obj.Checkboxes(k).Enable = 'off';
+                    end
                 end
             end
             obj.onCheckboxChanged();
