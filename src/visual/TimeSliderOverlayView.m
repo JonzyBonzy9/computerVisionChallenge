@@ -133,54 +133,39 @@ classdef TimeSliderOverlayView < handle
 
         function update(obj)            
             % get data into efficient image stack for images
-            disp("update")
-            disp(obj.App.OverlayClass.resultAvailable);
-            disp("...")
+            %disp(obj.App.OverlayClass.resultAvailable);
             if obj.App.OverlayClass.resultAvailable
                 obj.updateGroups(obj.App.OverlayClass.groups);
                 selectedGroupName = obj.GroupDropdown.Value;
                 selectedGroupIndex = str2double(selectedGroupName);
-                disp(selectedGroupIndex)
+
                 indices = obj.App.OverlayClass.groups{selectedGroupIndex};
                 filteredImages = obj.App.OverlayClass.warpedImages(indices);
                 obj.imageStack = cat(4, filteredImages{:});
-                obj.blendImages();
                 obj.imCheck.Enable = 'on';
                 obj.imCheck.Value = true;
                 % get data into efficient image stack for masks
-                disp(obj.App.DifferenceClass.resultAvailable)
+                %disp("results available?")
+                %disp(obj.App.DifferenceClass.resultAvailable)
                 if obj.App.DifferenceClass.resultAvailable
-                    disp("starting masks...")
                     maskList = cell(1, numel(indices));
                     imgSize = size(obj.App.OverlayClass.warpedImages{1});
                     emptyMask = zeros(imgSize(1), imgSize(2));
                     emptyMask = cat(3, emptyMask, emptyMask, emptyMask);
-                    for k = 1:numel(indices)                        
+                    for k = 1:numel(indices)
                         currentIndex = indices(k);
                         match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
-                        disp(currentIndex)
-                        disp(obj.App.DifferenceClass.lastIndices)
-                        disp("match:")
-                        disp(match)
                         if match(end)
-                            disp("end")
                             maskList{k} = emptyMask;
                         elseif any(match)
-                            disp("match found")
-                            disp(find(match,1))
                             mask = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
                             maskList{k} = cat(3, mask, zeros(size(mask)), zeros(size(mask)));
                         elseif k==1
-                            disp("nothing added yet")
                             maskList{k} = emptyMask;
                         else
-                            disp("reverting to last element")
                             maskList{k} = maskList{k-1};
                         end
-                        disp("size:")
-                        disp(size(maskList{k}))
                     end
-                    disp("end of masks")
                     obj.maskStack = cat(4, maskList{:});
                     obj.diffCheck.Enable = 'on';
                     obj.diffCheck.Value = true;
@@ -199,7 +184,7 @@ classdef TimeSliderOverlayView < handle
                 obj.imageStack = gpuArray(obj.imageStack);
                 obj.maskStack = gpuArray(obj.maskStack);
             end
-            obj.updateSlider(1)
+            obj.updateSlider()
             obj.blendImages()
         end
     end
@@ -215,7 +200,7 @@ classdef TimeSliderOverlayView < handle
                 obj.Slider.Value = value;
             else
                 % show warped images
-                N = size(obj.imageStack, 4);
+                N = size(obj.imageStack, 4);                
             
                 % Compute Gaussian weights centered at slider value
                 x = 1:N;
@@ -239,18 +224,19 @@ classdef TimeSliderOverlayView < handle
                 imshow(blended, 'Parent', obj.Axes);
             end
         end
-        function updateSlider(obj, group)
-            N = size(obj.imageStack, 4);
-            obj.Slider.Limits = [1, N];
-            obj.Slider.MajorTicks = 1:N;
-
+        function updateSlider(obj)            
             if ~obj.App.OverlayClass.resultAvailable
-                indices = 1:N;
+                indices = 1:size(obj.imageStack, 4);
             else
+                selectedGroupName = obj.GroupDropdown.Value;
+                group = str2double(selectedGroupName);
                 indices = obj.App.OverlayClass.groups{group};
             end
 
             dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
+            N = length(indices);
+            obj.Slider.Limits = [1, N];
+            obj.Slider.MajorTicks = 1:N;
             obj.Slider.MajorTickLabels = dates;
             obj.Slider.Value = 1;
         end
@@ -269,9 +255,7 @@ classdef TimeSliderOverlayView < handle
         function onGroupSelected(obj)
             if isempty(obj.App.OverlayClass.groups)
                 return
-            end
-            
-            obj.updateSlider(selectedGroupIndex);
+            end            
             obj.update()
         end
         function updateSigma(obj)
