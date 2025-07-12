@@ -88,10 +88,10 @@ classdef TimeSliderOverlayView < handle
 
             obj.GaussSlider = uislider(controlLayout);
             obj.GaussSlider.Layout.Row = 4;
-            obj.GaussSlider.Limits = [-1, log10(3)];
+            obj.GaussSlider.Limits = [-1, 0.5];
             obj.GaussSlider.Value = log10(1); % Default 1
             obj.sigma = 1;
-            obj.GaussSlider.MajorTicks = [-1, -0.5, 0, 1];
+            obj.GaussSlider.MajorTicks = [-1, -0.5, 0, 0.5];
             obj.GaussSlider.MajorTickLabels = {'0.1', '0.3', '1', '3'};
             obj.GaussSlider.ValueChangedFcn = @(src,event) obj.updateSigma();
 
@@ -152,6 +152,9 @@ classdef TimeSliderOverlayView < handle
                 if obj.App.DifferenceClass.resultAvailable
                     disp("starting masks...")
                     maskList = cell(1, numel(indices));
+                    imgSize = size(obj.App.OverlayClass.warpedImages{1});
+                    emptyMask = zeros(imgSize(1), imgSize(2));
+                    emptyMask = cat(3, emptyMask, emptyMask, emptyMask);
                     for k = 1:numel(indices)                        
                         currentIndex = indices(k);
                         match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
@@ -161,23 +164,24 @@ classdef TimeSliderOverlayView < handle
                         disp(match)
                         if match(end)
                             disp("end")
-                            imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
-                            maskList{k} = zeros(imgSize(1), imgSize(2));
+                            maskList{k} = emptyMask;
                         elseif any(match)
                             disp("match found")
                             disp(find(match,1))
-                            maskList{k} = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
+                            mask = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
+                            maskList{k} = cat(3, mask, zeros(size(mask)), zeros(size(mask)));
                         elseif k==1
                             disp("nothing added yet")
-                            imgSize = size(obj.App.OverlayClass.warpedImages{currentIndex});
-                            maskList{k} = zeros(imgSize(1), imgSize(2));
+                            maskList{k} = emptyMask;
                         else
                             disp("reverting to last element")
                             maskList{k} = maskList{k-1};
                         end
+                        disp("size:")
+                        disp(size(maskList{k}))
                     end
                     disp("end of masks")
-                    obj.maskStack = cat(3, maskList{:});
+                    obj.maskStack = cat(4, maskList{:});
                     obj.diffCheck.Enable = 'on';
                     obj.diffCheck.Value = true;
                 else
@@ -227,7 +231,7 @@ classdef TimeSliderOverlayView < handle
                 end
                 if obj.diffCheck.Value
                     for i = 1:N
-                        blended = blended + weights(i) * obj.maskStack(:,:,i);
+                        blended = blended + weights(i) * obj.maskStack(:,:,:,i);
                     end
                 end
             
