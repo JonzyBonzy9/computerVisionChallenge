@@ -61,7 +61,7 @@ classdef OverlayView < handle
             obj.GraphAxes = uiaxes(graphTab);
             obj.GraphAxes.XTick = [];
             obj.GraphAxes.YTick = [];
-            
+             
             % Store reference to matrixTab (if needed)
             obj.HeatmapPanel = matrixTab;  % reuse the existing property
 
@@ -121,8 +121,8 @@ classdef OverlayView < handle
             lbl.Layout.Row = 7;
             
             obj.MethodDropdown = uidropdown(controlLayout, ...
-                'Items', {'succesive', 'graph'}, ...
-                'Value', 'succesive', ...
+                'Items', {'graph', 'successive'}, ...
+                'Value', 'graph', ...
                 'Tooltip', 'Select algorithm');
             obj.MethodDropdown.Layout.Row = 8;
             
@@ -193,6 +193,29 @@ classdef OverlayView < handle
                 obj.Checkboxes(i) = cb;
             end
         end
+
+        function reset(obj)
+            % Reset the overlay view UI and state
+        
+            % Clear console
+            obj.StatusTextArea.Value = {'Console output will appear here...'};
+        
+            % Clear axes
+            cla(obj.Axes);
+            cla(obj.GraphAxes);
+        
+            obj.MethodDropdown.Value = 'graph';
+        
+            % Delete existing checkboxes
+            if isvalid(obj.CheckboxGrid)
+                delete(allchild(obj.CheckboxGrid));
+            end
+            
+            % TODO: reset confusion matrix, low priority
+
+        end
+
+
         function printStatus(obj, fmt, varargin)
             % Format the string just like fprintf
             newLine = sprintf(fmt, varargin{:});
@@ -244,22 +267,11 @@ classdef OverlayView < handle
             
             % get scorematrix
             scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-            scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
-            % get min and max vals
-            minVal = min(scoreMatrix(:), [], 'omitnan');
-            maxVal = max(scoreMatrix(:), [], 'omitnan');
-            % Handle edge case where all entries are NaN or equal
-            if isempty(minVal) || isempty(maxVal) || maxVal <= minVal || isnan(minVal) || isnan(maxVal)
-                minVal = 0;
-                maxVal = 1;
-            end
             
             h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
                 'MissingDataLabel', '', ...
                 'MissingDataColor', [0.8, 0.8, 0.8], ...
-                'Colormap', copper, ...
-                'ColorLimits', [minVal, maxVal]);
-            disp(obj.App.OverlayClass.lastIndices);
+                'Colormap', copper);
             dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
             dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
             % Only show X-axis labels, hide Y-axis labels
@@ -287,11 +299,13 @@ classdef OverlayView < handle
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
         end
         function allCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
         end        
 
         function onCheckboxChanged(obj)

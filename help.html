@@ -10,7 +10,6 @@
             color: #333;
             padding: 20px;
             line-height: 1.6;
-            position: relative;
             margin: 0;
         }
 
@@ -20,10 +19,16 @@
             padding-bottom: 5px;
         }
 
-        .close-button {
+        .header-right {
             position: absolute;
             top: 10px;
             right: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .close-button {
             font-size: 24px;
             font-weight: bold;
             color: #888;
@@ -35,6 +40,47 @@
             color: #000;
         }
 
+        select.language-select {
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ccc;
+            margin-top: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #e0e0e0;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            margin-right: 5px;
+            font-weight: bold;
+        }
+
+        .tab.active {
+            background-color: #ffffff;
+            border: 2px solid #ccc;
+            border-bottom: none;
+        }
+
+        .tab-content {
+            display: none;
+            background-color: #ffffff;
+            padding: 15px;
+            border: 2px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            margin-bottom: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         .step {
             background-color: #e8f0fe;
             padding: 10px 15px;
@@ -43,35 +89,153 @@
             border-radius: 4px;
         }
     </style>
+</head>
+<body>
+
+    <div class="header-right">
+        <select class="language-select" id="languageSelect">
+            <option value="de" selected>DE</option>
+            <option value="en">EN</option>
+        </select>
+        <div class="close-button" onclick="closeHelp()">×</div>
+    </div>
+
+    <h1 id="mainTitle">Hilfe zur MATLAB-App</h1>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="basics">Basics</div>
+        <div class="tab" data-tab="overlay">Overlay</div>
+        <div class="tab" data-tab="difference">Difference</div>
+        <div class="tab" data-tab="timeline">Timeline</div>
+        <div class="tab" data-tab="grid">Grid</div>
+    </div>
+
+    <div class="tab-content active" id="basics">
+        <div class="step" data-content="open"></div>
+        <div class="step" data-content="save"></div>
+        <div class="step" data-content="calculate"></div>
+        <div class="step" data-content="exit"></div>
+    </div>
+
+    <div class="tab-content" id="overlay">
+        <p data-content="overlay"></p>
+    </div>
+
+    <div class="tab-content" id="difference">
+        <p data-content="difference"></p>
+    </div>
+
+    <div class="tab-content" id="timeline">
+        <p data-content="timeline"></p>
+    </div>
+
+    <div class="tab-content" id="grid">
+        <p data-content="grid"></p>
+    </div>
+
     <script>
+        const translations = {
+            de: {
+                title: "Hilfe zur MATLAB-App",
+                open: "<strong>1. Öffnen:</strong> Klicken Sie auf „Öffnen“, um ein Bild zu laden.",
+                save: "<strong>2. Speichern:</strong> Speichern Sie das bearbeitete Bild mit „Speichern“.",
+                calculate: "<strong>3. Overlay berechnen:</strong> Klicken Sie auf „Calculate Overlay“, um die Differenz der geladenen Bilder sichtbar zu machen.",
+                exit: "<strong>4. Beenden:</strong> Mit „Beenden“ schließen Sie die App.",
+                overlay: `<strong>Overlay:</strong> In dieser Ansicht können zwei Bilder überlagert und analysiert werden. Gehen Sie folgendermaßen vor:<br>
+                1. Wählen Sie die <em>gewünschten Bilder</em> für die Überlagerung aus.<br>
+                2. Wählen Sie den gewünschten <em>Algorithmus</em> für die Analyse.<br>
+                3. Klicken Sie auf <em>„Calculate“</em>, um die Überlagerung durchzuführen.<br>
+                4. Wählen Sie bei Bedarf erneut Bilder aus, um weitere Vergleiche durchzuführen.<br><br>
+                <strong>Zusätzliche Informationen:</strong><br>
+                – <em>Konsole:</em> Zeigt den Fortschritt und detaillierte Informationen zur laufenden Berechnung.<br>
+                – <em>Confusion Matrix:</em> Gibt Aufschluss über die Genauigkeit der Klassifikation bzw. Übereinstimmung.<br>
+                – <em>Graph:</em> Stellt die Analyseergebnisse visuell dar.`
+                ,
+                difference: `<strong>Difference:</strong> In dieser Ansicht können Bildunterschiede analysiert werden. Gehen Sie folgendermaßen vor:<br>
+                1. Klicken Sie auf <em>„Calculate Differences“</em>, um den Analysemodus zu starten.<br>
+                2. Wählen Sie die <em>gewünschten Bilder</em> aus, zwischen denen die Differenz berechnet werden soll.<br>
+                3. Wählen Sie den <em>gewünschten Algorithmus</em> für die Differenzberechnung.<br>
+                4. Passen Sie die verfügbaren <em>Parameter</em> entsprechend Ihren Anforderungen an.<br>
+                5. Klicken Sie erneut auf <em>„Calculate Differences“</em> oder alternativ auf <em>„Calculate Overlay“</em>, um die Berechnung durchzuführen.`
+                ,
+                timeline: "<strong>Timeline:</strong> In der Timeline-Ansicht wird jeweils ein einzelnes Bild angezeigt. Über einen Schieberegler kann der Nutzer das gewünschte Bild auswählen. Dabei wird das Aufnahmedatum des jeweiligen Bildes direkt im Slider angezeigt.",
+                grid: "<strong>Grid:</strong> In der Grid-Ansicht werden alle Bilder aus dem ausgewählten Ordner in chronologisch aufsteigender Reihenfolge dargestellt. Dies ermöglicht einen schnellen Überblick über die zeitliche Entwicklung der Bilder."
+
+            },
+            en: {
+                title: "Help for MATLAB App",
+                open: "<strong>1. Open:</strong> Click 'Open' to load an image.",
+                save: "<strong>2. Save:</strong> Save the edited image using 'Save'.",
+                calculate: "<strong>3. Calculate Overlay:</strong> Click 'Calculate Overlay' to visualize the difference between the loaded images.",
+                exit: "<strong>4. Exit:</strong> Click 'Exit' to close the app.",
+                overlay: `<strong>Overlay:</strong> This view allows you to overlay and analyze two images. Please follow these steps:<br>
+                1. Select the <em>desired images</em> to overlay.<br>
+                2. Choose the appropriate <em>algorithm</em> for analysis.<br>
+                3. Click <em>“Calculate”</em> to perform the overlay.<br>
+                4. Re-select images as needed to repeat or compare results.<br><br>
+                <strong>Additional Information:</strong><br>
+                – <em>Console:</em> Displays progress and detailed information during the calculation.<br>
+                – <em>Confusion Matrix:</em> Provides insight into classification accuracy or agreement.<br>
+                – <em>Graph:</em> Visually presents the results of the analysis.`
+,
+                difference: `<strong>Difference:</strong> This view allows for analyzing differences between images. Please follow these steps:<br>
+                1. Click <em>“Calculate Differences”</em> to activate the analysis mode.<br>
+                2. Select the <em>desired images</em> to compare.<br>
+                3. Choose the <em>desired algorithm</em> for the difference calculation.<br>
+                4. Adjust the available <em>parameters</em> according to your needs.<br>
+                5. Click <em>“Calculate Differences”</em> again (or alternatively <em>“Calculate Overlay”</em>) to perform the calculation.`
+                ,
+                timeline: "<strong>Timeline:</strong> The timeline view displays one image at a time. The user can select the desired image using a slider, which shows the corresponding capture date.",
+                grid: "<strong>Grid:</strong> The grid view displays all images from the selected folder in chronological order. This provides a quick overview of the temporal progression of the images."
+
+            }
+        };
+
+        function updateLanguage(lang) {
+            const t = translations[lang];
+            document.getElementById("mainTitle").innerText = t.title;
+            document.querySelectorAll("[data-content]").forEach(el => {
+                const key = el.getAttribute("data-content");
+                el.innerHTML = t[key] || "";
+            });
+        }
+
         function closeHelp() {
+            console.log("× wurde geklickt");
             try {
-                if (window.parent && typeof window.parent.postMessage === 'function') {
-                    window.matlab.postMessage({ type: 'closeHelp' });
-                } else {
-                    console.error("postMessage nicht verfügbar.");
+                if (window.Matlab && typeof window.Matlab.setData === 'function') {
+                    window.Matlab.setData({ type: 'closeHelp' });
                 }
             } catch (e) {
                 console.error("Fehler beim Senden der Nachricht:", e);
             }
+            window.close();
         }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function () {
+                    const target = this.getAttribute('data-tab');
+
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+
+                    contents.forEach(content => {
+                        content.classList.toggle('active', content.id === target);
+                    });
+                });
+            });
+
+            document.getElementById("languageSelect").addEventListener("change", function () {
+                updateLanguage(this.value);
+            });
+
+            updateLanguage("de"); // initial
+        });
     </script>
-</head>
-<body>
-
-    <div class="close-button" onclick="closeHelp()">×</div>
-
-    <h1>Hilfe zur MATLAB-App</h1>
-
-    <div class="step">
-        <strong>1. Öffnen:</strong> Klicken Sie auf „Öffnen“, um ein Bild zu laden.
-    </div>
-    <div class="step">
-        <strong>2. Speichern:</strong> Speichern Sie das bearbeitete Bild mit „Speichern“.
-    </div>
-    <div class="step">
-        <strong>3. Beenden:</strong> Mit „Beenden“ schließen Sie die App.
-    </div>
 
 </body>
 </html>
