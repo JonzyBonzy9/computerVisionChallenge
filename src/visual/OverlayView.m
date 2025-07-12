@@ -298,23 +298,22 @@ classdef OverlayView < handle
         function clearCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
-                obj.onCheckboxChanged();  % manually trigger visualization update
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
+
         end
         function allCheckboxes(obj)
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
-                obj.onCheckboxChanged();  % manually trigger visualization update
             end
+            obj.onCheckboxChanged();  % manually trigger visualization update
+
         end        
 
         function onCheckboxChanged(obj)
 
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
-
-            % % Keep only those that were used in last calculation
-            % validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
 
             overlay = obj.App.OverlayClass.createOverlay(selected);  
             if ~isempty(overlay)
@@ -347,7 +346,6 @@ classdef OverlayView < handle
                     lastIndices = obj.App.OverlayClass.lastIndices;
                     if ismember(k, lastIndices)
                         obj.Checkboxes(k).Value = true;
-                        obj.onCheckboxChanged();
                     end
                 end
             else

@@ -58,7 +58,7 @@ classdef calcOverlay < handle
             disp("overlay")
 
             if isempty(idxs)
-                overlay = []
+                overlay = [];
                 return;
             end
 
