@@ -189,6 +189,8 @@ classdef calcOverlay < handle
                 indexedGroups{i} = idxs(found);  % optionally keep only valid indices
             end
 
+            obj.groups = indexedGroups;
+
 
 
         end
