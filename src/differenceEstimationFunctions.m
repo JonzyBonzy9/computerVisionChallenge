@@ -16,6 +16,10 @@ classdef differenceEstimationFunctions < handle
         differenceMasks
         resultAvailable
 
+        % 4D mask stack for efficient blending (H x W x C x N)
+        % Stores masks in RGB format for direct blending
+        maskStack
+
         % further public properties
         % e.g. parameters for algorithm
     end
@@ -95,7 +99,28 @@ classdef differenceEstimationFunctions < handle
 
             end
             differenceMasks = obj.differenceMasks;
+            obj.createImageStack();
             obj.resultAvailable = true;
+        end
+
+        function createImageStack(obj)
+            % Create 4D image stack from warpedImages for efficient blending
+            if isempty(obj.differenceMasks)
+                obj.maskStack = [];
+                return;
+            end
+
+            % Get dimensions from first image
+            [H, W, C] = size(obj.differenceMasks{1});
+            N = length(obj.differenceMasks);
+
+            % Pre-allocate 4D array
+            obj.maskStack = zeros(H, W, C, N, 'like', obj.differenceMasks{1});
+
+            % Copy images into stack
+            for i = 1:N
+                obj.maskStack(:,:,:,i) = obj.differenceMasks{i};
+            end
         end
 
         function mask = getMask(obj, id)
@@ -645,6 +670,7 @@ classdef differenceEstimationFunctions < handle
             obj.differenceMasks = obj.applyTemporalFiltering(combinedMasks, tempo, indices);
 
             differenceMasks = obj.differenceMasks;
+            obj.createImageStack();
             obj.resultAvailable = true;
         end
 
