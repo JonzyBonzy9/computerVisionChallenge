@@ -10,6 +10,8 @@ classdef DifferenceView3 < handle
         AnalysisTab     matlab.ui.container.Tab
         StatsTab        matlab.ui.container.Tab
         ConsoleTab      matlab.ui.container.Tab
+        individualPanel matlab.ui.container.Panel
+        combinedPanel   matlab.ui.container.Panel
 
         % Visualization components
         MainAxes        matlab.ui.control.UIAxes
@@ -439,7 +441,7 @@ classdef DifferenceView3 < handle
 
             obj.VisualizationDropdown = uidropdown(visualLayout, ...
                 'Items', {'Individual', 'Combined'}, ...
-                'Value', 'Individual', ...
+                'Value', 'Combined', ...
                 'Tooltip', 'Select Individual (slider-based) or Combined visualization');
             obj.VisualizationDropdown.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -463,50 +465,48 @@ classdef DifferenceView3 < handle
             obj.MasksCheckbox.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
+            obj.individualPanel = obj.createSection(visualLayout, 'Individual Mode Controls', currentRow + 2);
+            obj.individualPanel.Visible = 'off';  % Initially hidden
+            individualGrid = uigridlayout(obj.individualPanel);
+            individualGrid.RowHeight = {'fit', 'fit'};
+            individualGrid.ColumnWidth = {'1x'};
+            obj.combinedPanel = obj.createSection(visualLayout, 'Combined Mode Controls', currentRow + 2);
+            obj.combinedPanel.Visible = 'on';
+            combinedGrid = uigridlayout(obj.combinedPanel);
+            combinedGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit'};
+            combinedGrid.ColumnWidth = {'1x'};
+
             % === Individual Mode Controls ===
-            individualLabel = uilabel(visualLayout, 'Text', 'Individual Mode (Gaussian Blend):', 'FontWeight', 'bold');
-            individualLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.SigmaLabel = uilabel(individualGrid, 'Text', 'Blend Amount: 1.0');
+            obj.SigmaLabel.Layout.Row = 1;
 
-            obj.SigmaLabel = uilabel(visualLayout, 'Text', 'Blend Amount: 1.0');
-            obj.SigmaLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            obj.SigmaSlider = uislider(visualLayout, ...
+            obj.SigmaSlider = uislider(individualGrid, ...
                 'Limits', [-1, 0.5], ...
                 'Value', 0, ...
                 'MajorTicks', [-1, -0.5, 0, 0.5], ...
                 'MajorTickLabels', {'0.1', '0.3', '1', '3'}, ...
                 'Tooltip', 'Gaussian blend amount (log scale)');
-            obj.SigmaSlider.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.SigmaSlider.Layout.Row = 2;
 
             % === Combined Mode Controls ===
-            combinedLabel = uilabel(visualLayout, 'Text', 'Combined Mode:', 'FontWeight', 'bold');
-            combinedLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            obj.CombinationDropdown = uidropdown(visualLayout, ...
+            obj.CombinationDropdown = uidropdown(combinedGrid, ...
                 'Items', {'Heatmap', 'Temporal Overlay', 'Sum', 'Average', 'Max'}, ...
                 'Value', 'Heatmap', ...
                 'Tooltip', 'How to combine multiple masks');
-            obj.CombinationDropdown.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.CombinationDropdown.Layout.Row = 1;
 
             % === Mask Navigation ===
-            maskNavLabel = uilabel(visualLayout, 'Text', 'Mask Navigation:', 'FontWeight', 'bold');
-            maskNavLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            maskNavLabel = uilabel(individualGrid, 'Text', 'Mask Navigation:', 'FontWeight', 'bold');
+            maskNavLabel.Layout.Row = 3;
 
-            obj.MaskLabel = uilabel(visualLayout, 'Text', 'Mask: 1 of 1');
-            obj.MaskLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.MaskLabel = uilabel(combinedGrid, 'Text', 'Mask: 1 of 1');
+            obj.MaskLabel.Layout.Row = 4;
 
-            obj.MaskSlider = uislider(visualLayout, ...
+            obj.MaskSlider = uislider(combinedGrid, ...
                 'Limits', [1, 2], ...
                 'Value', 1, ...
                 'MinorTicks', []);
-            obj.MaskSlider.Layout.Row = currentRow;
+            obj.MaskSlider.Layout.Row = 5;
             obj.MaskSlider.Enable = 'off';
         end
 
@@ -673,15 +673,13 @@ classdef DifferenceView3 < handle
             switch visualizationType
                 case 'Individual'
                     % Show individual mode controls, hide combined mode controls
-                    obj.SigmaLabel.Visible = 'on';
-                    obj.SigmaSlider.Visible = 'on';
-                    obj.CombinationDropdown.Visible = 'off';
+                    obj.individualPanel.Visible = 'on';
+                    obj.combinedPanel.Visible = 'off';
 
                 case 'Combined'
                     % Show combined mode controls, hide individual mode controls
-                    obj.SigmaLabel.Visible = 'off';
-                    obj.SigmaSlider.Visible = 'off';
-                    obj.CombinationDropdown.Visible = 'on';
+                    obj.individualPanel.Visible = 'off';
+                    obj.combinedPanel.Visible = 'on';
             end
 
             % Update visualization if data is available
