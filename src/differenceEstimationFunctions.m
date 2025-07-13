@@ -25,7 +25,7 @@ classdef differenceEstimationFunctions < handle
 
     properties (Constant)
         % define value ranges etc
-        valid_methods = {'absdiff','gradient','ssim','dog','pca','temporal_analysis','texture_change','edge_evolution'};
+        valid_methods = {'absdiff','gradient','ssim','dog','pca','urban','temporal_analysis','texture_change','edge_evolution'};
         valid_change_types = {'fast', 'slow', 'periodic', 'large_scale', 'medium_scale', 'small_scale', 'urban', 'natural', 'mixed'};
         valid_visualization_types = {'heatmap', 'overlay', 'difference_evolution', 'change_magnitude', 'temporal_profile', 'change_timeline'};
         value_range_threshold = [0, 1];
@@ -73,6 +73,10 @@ classdef differenceEstimationFunctions < handle
                         mask = differenceEstimationFunctions.detectChange_ssim(I1, I2, threshold, true);
                     case 'dog'
                         mask = differenceEstimationFunctions.detectChange_DoG(I1, I2, threshold, true);
+                    case 'urban'
+                        mask=differenceEstimationFunctions.detectChange_urban(I1,I2,threshold,true);
+                    case 'nature'
+                        mask=differenceEstimationFunctions.detectChange_nature(I1,I2,threshold,true);
                     case 'pca'
                         mask = differenceEstimationFunctions.detectChange_pca(I1, I2, threshold, true);
                     case 'temporal_analysis'
@@ -81,6 +85,7 @@ classdef differenceEstimationFunctions < handle
                         mask = differenceEstimationFunctions.detectChange_texture(I1, I2, threshold, true);
                     case 'edge_evolution'
                         mask = differenceEstimationFunctions.detectChange_edge(I1, I2, threshold, true);
+
                     otherwise
                         error('Unknown method "%s". Supported methods: %s.', method, strjoin(obj.valid_methods, ', '));
                 end
@@ -292,7 +297,6 @@ classdef differenceEstimationFunctions < handle
 
             % Preprocess images first
             [I1, I2] = differenceEstimationFunctions.preprocessImages(I1, I2, blockSize);
-
             % Dispatch to the specified method
             switch lower(method)
                 case 'absdiff'
@@ -308,7 +312,7 @@ classdef differenceEstimationFunctions < handle
                 otherwise
                     error('Unknown method "%s". Supported methods: absdiff, gradient, ssim, dog, pca.', method);
             end
-
+            disp('Process called')
             % Postprocess mask with area filtering
             changeMask = differenceEstimationFunctions.postprocessMask(mask, areaMin, areaMax);
         end
@@ -340,7 +344,7 @@ classdef differenceEstimationFunctions < handle
         function maskOut = postprocessMask(maskIn, areaMin, areaMax)
             if nargin < 2, areaMin = 30; end
             if nargin < 3, areaMax = Inf; end
-
+    
             % Filter connected components by area range
             maskOut = bwpropfilt(maskIn, 'Area', [areaMin, areaMax]);
 
@@ -406,6 +410,7 @@ classdef differenceEstimationFunctions < handle
                 mask = differenceEstimationFunctions.postprocessMask(mask);
             end
         end
+
 
         %% ===== 5. PCA-Based Change Detection =====
         function mask = detectChange_pca(I1, I2, threshold, skipPostprocessing)
@@ -507,6 +512,49 @@ classdef differenceEstimationFunctions < handle
                 mask = differenceEstimationFunctions.postprocessMask(mask);
             end
         end
+         %% ===== 9. Urban combi =====
+         function mask = detectChange_urban(I1, I2, threshold, skipPostprocessing)
+            if nargin < 4, skipPostprocessing = false; end
+            diffImage = imabsdiff(I1, I2);
+            if nargin < 3 || isnan(threshold)
+                threshold = graythresh(diffImage);
+            end
+            mask_abs = imbinarize(diffImage, threshold);
+            if ~skipPostprocessing
+                mask_abs = differenceEstimationFunctions.postprocessMask(mask_abs);
+            end
+
+
+            dogDiff = imabsdiff(I1_DoG, I2_DoG);
+            
+            mask_ssim = imbinarize(dogDiff, 13.2);
+            if ~skipPostprocessing
+                mask_ssim = differenceEstimationFunctions.postprocessMask(mask_ssim);
+            end
+            mask=mask_abs | mask_ssim;
+        end
+
+          %% ===== 10. Nature combi =====
+          function mask = detectChange_nature(I1, I2, threshold, skipPostprocessing)
+            if nargin < 4, skipPostprocessing = false; end
+            diffImage = imabsdiff(I1, I2);
+            if nargin < 3 || isnan(threshold)
+                threshold = graythresh(diffImage);
+            end
+            mask_abs = imbinarize(diffImage, threshold);
+            if ~skipPostprocessing
+                mask_abs = differenceEstimationFunctions.postprocessMask(mask_abs);
+            end
+
+
+            dogDiff = imabsdiff(I1_DoG, I2_DoG);
+            
+            mask_ssim = imbinarize(dogDiff, 13.2);
+            if ~skipPostprocessing
+                mask_ssim = differenceEstimationFunctions.postprocessMask(mask_ssim);
+            end
+            mask=mask_abs | mask_ssim;
+        end
 
         %% ===== Helper function for LBP calculation =====
         function lbp = calculateLBP(img)
@@ -577,7 +625,7 @@ classdef differenceEstimationFunctions < handle
             disp(detectionMethods);
             disp(obj.threshold);
             disp(obj.blockSize);
-
+            disp('Process called')
             for i = 1:length(filteredImages)-1
                 I1 = filteredImages{i};
                 I2 = filteredImages{i+1};
@@ -601,6 +649,8 @@ classdef differenceEstimationFunctions < handle
                             mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc, obj.threshold, true);
                         case 'dog'
                             mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, obj.threshold, true);
+                        case 'urban'
+                            mask=differenceEstimationFunctions.detectChange_urban(I1,I2,obj.threshold,true);
                         case 'pca'
                             mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, obj.threshold, true);
                         case 'temporal_analysis'

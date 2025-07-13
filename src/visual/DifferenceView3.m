@@ -131,7 +131,14 @@ classdef DifferenceView3 < handle
                 'blockSizePixels', 10, ...      % 10 pixel block size
                 'areaMinPixels', 1000, ...       % 100 pixels minimum
                 'areaMaxPixels', 100000);        % 10000 pixels maximum
-
+            obj.ChangeTypePresets.scale.urban=struct(...
+                'blockSizePixels', 1,...        % 1 pixel block size
+                'areaMinPixels', 100,...       % 1 pixel minimum
+                'areaMaxPixels', 200000);
+            obj.ChangeTypePresets.scale.nature=struct(...
+                'blockSizePixels', 5,...        % 5 pixel block size
+                'areaMinPixels', 500,...       % 500 pixel minimum
+                'areaMaxPixels', Inf);
             % ALGORITHM/TYPE dimension (combines detection method - temporal filter removed from algorithm control)
             obj.ChangeTypePresets.algorithmType = struct();
 
@@ -159,8 +166,13 @@ classdef DifferenceView3 < handle
             obj.ChangeTypePresets.algorithmType.pca = struct(...
                 'method', 'pca', ...                   % Principal component analysis
                 'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
+                'areaModifier', 1.0);   % No area modification
+          
+            obj.ChangeTypePresets.algorithmType.urban = struct(...
+            'method', 'urban', ...                   % Principal component analysis
+            'thresholdModifier', 1.0, ...          % No threshold modification
+            'areaModifier', 1.0);                  % No area modification
+           
             obj.ChangeTypePresets.algorithmType.temporal_analysis = struct(...
                 'method', 'temporal_analysis', ...     % Temporal sequence analysis
                 'thresholdModifier', 1.0, ...          % No threshold modification
@@ -202,23 +214,23 @@ classdef DifferenceView3 < handle
 
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.Urban = struct(...
-                'algorithm', 'absdiff', ...             % Simple difference detection for buildings
-                'threshold', 20, ...                    % 20% threshold for clear changes
+                'algorithm', 'urban', ...             % Simple difference detection for buildings
+                'threshold', 31, ...                    % 31% threshold for clear changes
                 'blockSize', 1, ...                     % 1 pixel block size for fine detail
-                'areaMinPixels', 105, ...               % 105 pixels minimum area (0.0029% for large images)
-                'areaMaxPercent', 4, ...                % 4% max area for large structures
+                'areaMinPixels', 334, ...               % 105 pixels minimum area (0.0029% for large images)
+                'areaMaxPercent', 10, ...                % 4% max area for large structures
                 'temporalFilter', 'fast', ...           % Fast temporal processing for urban changes
-                'scale', 'medium');                     % Medium spatial scale
+                'scale', 'urban');                     % Medium spatial scale
 
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.Natural = struct(...
-                'algorithm', 'texture_change', ...      % Texture-based for natural features
+                'algorithm', 'nature', ...      % Texture-based for natural features
                 'threshold', 15, ...                    % 15% threshold (more sensitive for natural changes)
                 'blockSize', 5, ...                     % 5 pixel block size for organic textures
                 'areaMinPixels', 500, ...               % 500 pixels minimum area (larger organic features)
-                'areaMaxPercent', 8, ...                % 8% max area for natural formations
+                'areaMaxPercent', 100, ...                % 8% max area for natural formations
                 'temporalFilter', 'medium', ...         % Medium temporal processing for gradual changes
-                'scale', 'large');                      % Large spatial scale for natural features
+                'scale', 'nature');                      % Large spatial scale for natural features
         end
 
         function createMainLayout(obj)
@@ -327,7 +339,7 @@ classdef DifferenceView3 < handle
             currentRow = currentRow + 1;
 
             obj.AlgorithmTypeDropdown = uidropdown(paramLayout, ...
-                'Items', {'absdiff', 'gradient', 'ssim', 'dog', 'pca', 'temporal_analysis', 'texture_change', 'edge_evolution', ...
+                'Items', {'absdiff', 'gradient', 'ssim', 'dog', 'pca','urban','nature', 'temporal_analysis', 'texture_change', 'edge_evolution', ...
                 '--- Environment Optimized ---', 'urban_optimized', 'natural_optimized', 'mixed_optimized'}, ...
                 'Value', 'absdiff', ...
                 'Tooltip', 'Select detection algorithm or environment-optimized preset');
@@ -345,7 +357,7 @@ classdef DifferenceView3 < handle
             currentRow = currentRow + 1;
 
             obj.ScaleDropdown = uidropdown(paramLayout, ...
-                'Items', {'Custom', 'small', 'medium', 'large'}, ...
+                'Items', {'Custom', 'small', 'medium', 'large','urban','nature'}, ...
                 'Value', 'Custom', ...
                 'Tooltip', 'Select spatial scale of changes');
             obj.ScaleDropdown.Layout.Row = currentRow;
@@ -408,7 +420,7 @@ classdef DifferenceView3 < handle
             obj.AreaMaxLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.AreaMaxSlider = uislider(paramLayout, 'Limits', [1, 6], 'Value', 4, ...
+            obj.AreaMaxSlider = uislider(paramLayout, 'Limits', [1, 7], 'Value', 4, ...
                 'Tooltip', 'Maximum change area (logarithmic scale: 10 pixels to 50% of image)');
             obj.AreaMaxSlider.Layout.Row = currentRow;
             currentRow = currentRow + 1;
