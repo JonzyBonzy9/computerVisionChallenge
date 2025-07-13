@@ -24,6 +24,7 @@ classdef calcOverlay < handle
         % Cell array of 4D image stacks for efficient blending, one stack per group
         % imageStack{groupIdx} = (H x W x C x N) array for group groupIdx
         imageStack
+        groupOverlay
 
         % further public properties
         % e.g. parameters for algorithm
@@ -52,17 +53,38 @@ classdef calcOverlay < handle
                 case 'graph'
                     obj.homographieGraphBased(dispFunction);
             end
-
+            obj.groupOverlay = cell(1, numel(obj.groups));  % Initialize group overlays
             obj.warp();
             obj.resultAvailable = true;
         end
-        function overlay = createOverlay(obj, indices)
+        function overlay = getGroupOverlay(obj, group)
+            if ~obj.resultAvailable
+                overlay = [];  % No result available yet
+                return
+            end
+            if nargin < 2
+                group = 1;  % Default to first group if not specified
+            end
+            if group > numel(obj.groups)
+                overlay = [];  % Invalid group index
+                return
+            end
+            if isempty(obj.groupOverlay{group})
+                indices = obj.groups{group};
+                obj.groupOverlay{group} = obj.createOverlay(indices, group);
+            end
+            overlay = obj.groupOverlay{group};
+        end
+
+        function overlay = createOverlay(obj, indices, group)
+            if nargin < 3
+                group = 'All';  % Default to first group if not specified
+            end
             disp("overlay")
-            if length(indices) == 0
+            if isempty(indices)
                 overlay = [];
                 return
             end
-            group = 1;
             % check whether overlay was already calculated
             if ~obj.resultAvailable
                 % Initialize overlay with first image
@@ -77,9 +99,29 @@ classdef calcOverlay < handle
                 overlay = im2uint8(overlay);
                 return
             end
-            validSelection = intersect(indices, obj.lastIndices);
-            [~, localIdxs] = ismember(validSelection, obj.lastIndices);
-            overlay = sum(obj.imageStack{group}(:,:,:,localIdxs), 4);  % Sum across the 4th dimension (N images in group)
+
+            if group == 'All'
+                for i = 1:numel(obj.groups)
+                    validSelection = intersect(indices, obj.groups{i});
+                    [~, localIdxs] = ismember(validSelection, obj.groups{i});
+                    if isempty(localIdxs)
+                        continue;  % Skip empty groups
+                    end
+                    if i == 1
+                        overlay = sum(obj.imageStack{i}(:,:,:,localIdxs), 4);  % Initialize with first group
+                    else
+                        overlay = overlay + sum(obj.imageStack{i}(:,:,:,localIdxs), 4);  % Sum across all groups
+                    end
+                end
+            else
+                validSelection = intersect(indices, obj.groups{group});
+                [~, localIdxs] = ismember(validSelection, obj.groups{group});
+                disp(group)
+                disp(size(obj.imageStack{group}))
+                disp(validSelection)
+                disp(localIdxs)
+                overlay = sum(obj.imageStack{group}(:,:,:,localIdxs), 4);  % Sum across the 4th dimension (N images in group)
+            end
             overlay = overlay ./ length(validSelection);  % Average the sum
         end
 

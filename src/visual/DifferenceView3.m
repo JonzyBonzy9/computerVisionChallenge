@@ -8,7 +8,6 @@ classdef DifferenceView3 < handle
         TabGroup        matlab.ui.container.TabGroup
         MainTab         matlab.ui.container.Tab
         AnalysisTab     matlab.ui.container.Tab
-        StatsTab        matlab.ui.container.Tab
         ConsoleTab      matlab.ui.container.Tab
         individualPanel matlab.ui.container.Panel
         combinedPanel   matlab.ui.container.Panel
@@ -16,7 +15,6 @@ classdef DifferenceView3 < handle
         % Visualization components
         MainAxes        matlab.ui.control.UIAxes
         AnalysisAxes    matlab.ui.control.UIAxes
-        StatsAxes       matlab.ui.control.UIAxes
         StatusTextArea  matlab.ui.control.TextArea
 
         % Unified algorithm/type dropdown and visualization controls
@@ -64,6 +62,7 @@ classdef DifferenceView3 < handle
         % Internal state
         currentResults
         currentMasks
+        group
         isUpdatingPreset logical  % Flag to prevent recursive updates
 
         % TimeSlider-like functionality for individual mode
@@ -120,11 +119,9 @@ classdef DifferenceView3 < handle
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
             obj.clearAxes(obj.AnalysisAxes);
-            obj.clearAxes(obj.StatsAxes);
 
             title(obj.MainAxes, 'Change Detection Visualization');
             title(obj.AnalysisAxes, 'Change Analysis');
-            title(obj.StatsAxes, 'Change Statistics');
 
             % Reset parameters to defaults (logarithmic scale for areas)
             obj.ThresholdSlider.Value = 20;    % 20% threshold (within [1, 100] range)
@@ -172,6 +169,7 @@ classdef DifferenceView3 < handle
             end
 
             disp("update")
+            obj.updateCheckboxes();  % Update checkboxes based on current state
 
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
@@ -195,8 +193,6 @@ classdef DifferenceView3 < handle
                 obj.MasksCheckbox.Enable = 'off';
                 obj.MasksCheckbox.Value = false;  % Disable and uncheck
             end
-
-            obj.updateCheckboxes();  % Update checkboxes based on current state
             obj.updateSlider();
             obj.updateVisualization();
         end
@@ -216,7 +212,7 @@ classdef DifferenceView3 < handle
                 for i = 1:n
                     dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
                     isChecked = ismember(i, obj.App.DifferenceClass.lastIndices);
-                    isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
+                    isAvailable = ismember(i, obj.App.OverlayClass.groups{obj.group});
                     cb = uicheckbox(obj.CheckboxGrid, ...
                         'Text', dateStr, ...
                         'Value', isChecked);
@@ -233,7 +229,7 @@ classdef DifferenceView3 < handle
             elseif obj.App.OverlayClass.resultAvailable
                 for i = 1:n
                     dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
-                    isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
+                    isAvailable = ismember(i, obj.App.OverlayClass.groups{obj.group});
                     cb = uicheckbox(obj.CheckboxGrid, ...
                         'Text', dateStr, ...
                         'Value', isAvailable);
@@ -415,11 +411,6 @@ classdef DifferenceView3 < handle
             obj.AnalysisAxes.YTick = [];
             title(obj.AnalysisAxes, 'Change Analysis');
 
-            % Statistics tab for quantitative analysis
-            obj.StatsTab = uitab(obj.TabGroup, 'Title', 'Statistics');
-            obj.StatsAxes = uiaxes(obj.StatsTab);
-            title(obj.StatsAxes, 'Change Statistics');
-
             % Console tab for status and output
             obj.ConsoleTab = uitab(obj.TabGroup, 'Title', 'Console');
             obj.StatusTextArea = uitextarea(obj.ConsoleTab, ...
@@ -439,14 +430,17 @@ classdef DifferenceView3 < handle
             imageSelectionTab = uitab(controlTabGroup, 'Title', 'Image Selection');
 
             imageLayout = uigridlayout(imageSelectionTab);
-            imageLayout.RowHeight = {'fit', '1x', 'fit'};
+            imageLayout.RowHeight = {'fit', 'fit', '1x', 'fit'};
             imageLayout.ColumnWidth = {'1x'};
             imageLayout.RowSpacing = 5;
             imageLayout.Padding = [10, 10, 10, 10];
 
+            lbl = uilabel(imageLayout, 'Text', 'Select images from one group for calculations:', 'FontWeight', 'bold');
+            lbl.Layout.Row = 1;
+
             % Group Selection area with dropdown and refresh button
             groupSelectionGrid = uigridlayout(imageLayout);
-            groupSelectionGrid.Layout.Row = 1;
+            groupSelectionGrid.Layout.Row = 2;
             groupSelectionGrid.RowHeight = {'fit'};
             groupSelectionGrid.ColumnWidth = {'1x', '1x'};
             groupSelectionGrid.ColumnSpacing = 5;
@@ -468,7 +462,7 @@ classdef DifferenceView3 < handle
 
             % Image Selection checkboxes
             obj.CheckboxGrid = uigridlayout(imageLayout);
-            obj.CheckboxGrid.Layout.Row = 2;
+            obj.CheckboxGrid.Layout.Row = 3;
             obj.CheckboxGrid.ColumnWidth = {'1x'};
             obj.CheckboxGrid.RowSpacing = 2;
 
@@ -477,7 +471,7 @@ classdef DifferenceView3 < handle
                 'Text', 'Clear all', ...
                 'FontColor', 'red', ...
                 'ButtonPushedFcn', @(btn, evt) obj.clearCheckboxes());
-            obj.ClearButton.Layout.Row = 3;
+            obj.ClearButton.Layout.Row = 4;
 
             % === PARAMETERS TAB ===
             parametersTab = uitab(controlTabGroup, 'Title', 'Parameters');
@@ -1018,6 +1012,10 @@ classdef DifferenceView3 < handle
                     % Update visualization
                     obj.updateVisualization();
 
+                    if obj.dataAvailable
+                        obj.updateAnalysisTab();
+                    end
+
                     % Provide detailed status
                     usePresetInfo = {};
                     if ~strcmp(scale, 'Custom'), usePresetInfo{end+1} = sprintf('scale:%s', scale); end
@@ -1054,11 +1052,9 @@ classdef DifferenceView3 < handle
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
             obj.clearAxes(obj.AnalysisAxes);
-            obj.clearAxes(obj.StatsAxes);
 
             title(obj.MainAxes, 'Change Detection Visualization');
             title(obj.AnalysisAxes, 'Change Analysis');
-            title(obj.StatsAxes, 'Change Statistics');
 
             obj.updateStatus('Results cleared');
         end
@@ -1067,27 +1063,28 @@ classdef DifferenceView3 < handle
 
         function onGroupChanged(obj)
             % Handle group selection change (like DifferenceView)
-            if ~obj.dataAvailable
+            disp('Group selection changed');
+            if ~obj.App.OverlayClass.resultAvailable
                 return
             end
-            if isempty(obj.App.OverlayClass.groups)
-                return
-            end
-            group = str2double(obj.GroupDropdown.Value);
+            obj.group = str2double(obj.GroupDropdown.Value);
             % Get indices of items in selected group
-            groupIndices = obj.App.OverlayClass.groups{group};
-
+            groupIndices = obj.App.OverlayClass.groups{obj.group};
             % Loop through all checkboxes in the grid and update selection
             for k = 1:numel(obj.Checkboxes)
+                disp(k)
                 if ismember(k, groupIndices)
+                    disp("in")
                     obj.Checkboxes(k).Value = true;
                     obj.Checkboxes(k).Enable = 'on';
                 else
+                    disp("out")
                     obj.Checkboxes(k).Value = false;
                     obj.Checkboxes(k).Enable = 'off';
                 end
             end
             obj.updateSlider();
+            obj.updateVisualization();
         end
 
         function onClearAll(obj)
@@ -1105,12 +1102,10 @@ classdef DifferenceView3 < handle
             visualizationType = obj.VisualizationDropdown.Value;
             switch visualizationType
                 case 'Individual'
-                    group = str2double(obj.GroupDropdown.Value);
-                    disp(group);
-                    obj.blendImages(obj.MainAxes, group);
+                    obj.blendImages(obj.MainAxes, obj.group);
                 case 'Combined'
                     if obj.ImagesCheckbox.Value
-                        overlay = obj.App.OverlayClass.createOverlay(obj.App.OverlayClass.lastIndices);
+                        overlay = obj.App.OverlayClass.getGroupOverlay(obj.group);
                         imshow(overlay, 'Parent', obj.MainAxes);
                     end
                     if obj.MasksCheckbox.Value
@@ -1134,12 +1129,6 @@ classdef DifferenceView3 < handle
                         end
                         hold(obj.MainAxes, 'off')
                     end
-            end
-            
-            % Update Analysis and Statistics tabs when data is available
-            if obj.dataAvailable
-                obj.updateAnalysisTab();
-                obj.updateStatsTab();
             end
         end
 
@@ -1354,7 +1343,10 @@ classdef DifferenceView3 < handle
         end
 
         function displayDifferenceEvolution(obj, axes)
-            % Display how changes evolve over time using maskStack interface
+            cla(axes);
+            % Combined analysis: Display change magnitude as bar chart with trend line
+            % This function combines quantitative analysis (bar chart with percentages)
+            % and temporal trend analysis (trend line) in a single comprehensive visualization
             if isempty(obj.App.DifferenceClass.maskStack)
                 title(axes, 'No mask data available');
                 return;
@@ -1363,57 +1355,58 @@ classdef DifferenceView3 < handle
             % Get number of masks from maskStack
             numMasks = size(obj.App.DifferenceClass.maskStack, 4);
 
-            % Calculate change magnitude for each mask
-            changeMagnitudes = zeros(1, numMasks);
-            for i = 1:numMasks
-                maskData = obj.App.DifferenceClass.maskStack(:,:,:,i);
-                changeMagnitudes(i) = sum(maskData(:));
-            end
-
-            plot(axes, 1:length(changeMagnitudes), changeMagnitudes, 'o-', 'LineWidth', 2, 'MarkerSize', 6);
-            title(axes, 'Change Evolution Over Time');
-            xlabel(axes, 'Time Step (Mask Index)');
-            ylabel(axes, 'Change Magnitude (Pixels)');
-            grid(axes, 'on');
-
-            % Add trend line
-            if length(changeMagnitudes) > 2
-                x = 1:length(changeMagnitudes);
-                p = polyfit(x, changeMagnitudes, 1);
-                trendline = polyval(p, x);
-                hold(axes, 'on');
-                plot(axes, x, trendline, '--r', 'LineWidth', 1);
-                hold(axes, 'off');
-                legend(axes, 'Change Magnitude', 'Trend', 'Location', 'best');
-            end
-        end
-
-        function displayChangeMagnitude(obj, axes)
-            % Display change magnitude as bar chart using maskStack interface
-            if isempty(obj.App.DifferenceClass.maskStack)
-                title(axes, 'No mask data available');
-                return;
-            end
-
-            % Get number of masks from maskStack
-            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
-            
             changeMagnitudes = zeros(1, numMasks);
             changePercentages = zeros(1, numMasks);
-            
+
             % Get mask dimensions for percentage calculation
             [h, w] = size(obj.App.DifferenceClass.maskStack, [1, 2]);
             maskTotalPixels = h * w;
 
+            % Calculate change magnitude and percentage for each mask
             for i = 1:numMasks
                 maskData = obj.App.DifferenceClass.maskStack(:,:,:,i);
                 changeMagnitudes(i) = sum(maskData(:));
                 changePercentages(i) = (changeMagnitudes(i) / maskTotalPixels) * 100;
             end
 
+            % Create bar chart
             bar(axes, changePercentages);
-            title(axes, 'Change Magnitude by Time Step');
-            xlabel(axes, 'Time Step (Mask Index)');
+            hold(axes, 'on');
+
+            % Add trend line if we have enough data points
+            if length(changePercentages) > 2
+                x = 1:length(changePercentages);
+                p = polyfit(x, changePercentages, 1);
+                trendline = polyval(p, x);
+                plot(axes, x, trendline, '--r', 'LineWidth', 2);
+                legend(axes, 'Change Magnitude (%)', 'Trend', 'Location', 'best');
+            end
+
+            hold(axes, 'off');
+
+            % Get date labels for x-axis (similar to temporal colorbar)
+            if ~isempty(obj.App.DifferenceClass.lastIndices)
+                % Get the image array and corresponding dates
+                imageArray = obj.App.OverlayClass.imageArray;
+                maskIndices = obj.App.DifferenceClass.lastIndices;
+
+                % Extract dates for each mask
+                dates = cell(numMasks+1, 1);
+                for i = 1:numMasks+1
+                    if i <= length(maskIndices) && maskIndices(i) <= length(imageArray)
+                        dates{i} = datestr(imageArray{maskIndices(i)}.id, 'mmm yyyy');
+                    else
+                        dates{i} = sprintf('Mask %d', i);
+                    end
+                end
+
+                % Set custom x-axis ticks and labels
+                axes.XTick = 0.5:numMasks+0.5;
+                axes.XTickLabel = dates;
+            end
+
+            title(axes, 'Change Magnitude Evolution Over Time');
+            xlabel(axes, 'Time Period');
             ylabel(axes, 'Change Area (%)');
             grid(axes, 'on');
 
@@ -1507,16 +1500,6 @@ classdef DifferenceView3 < handle
             obj.displayDifferenceEvolution(obj.AnalysisAxes);
         end
 
-        function updateStatsTab(obj)
-            % Update the statistics tab with quantitative analysis
-            if ~obj.dataAvailable || isempty(obj.App.DifferenceClass.maskStack)
-                return;
-            end
-
-            % Use the new change magnitude display method
-            obj.displayChangeMagnitude(obj.StatsAxes);
-        end
-
         function selectedIndices = getSelectedImageIndices(obj)
             % Get indices of selected images from checkboxes (like DifferenceView)
             selectedIndices = [];
@@ -1571,13 +1554,21 @@ classdef DifferenceView3 < handle
         end
 
         function updateGroups(obj, groups)
-            % Update groups dropdown (like DifferenceView)
+            if ~obj.App.OverlayClass.resultAvailable
+                obj.GroupDropdown.Items = {''};
+                obj.GroupDropdown.Value = {''};  % Default to first group
+                obj.GroupDropdown.Enable = 'off';
+                return;
+            end
+            obj.GroupDropdown.Enable = 'on';
             numGroups = numel(groups);
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
             obj.GroupDropdown.Items = groupNames;
+            obj.GroupDropdown.Value = groupNames{1};  % Default to first group
 
             % Attach callback for dropdown selection change (like DifferenceView)
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupChanged();
+            obj.onGroupChanged();  % Initialize with first group
         end
 
 

@@ -16,6 +16,7 @@ classdef OverlayView < handle
         StatusTextArea
         GroupDropdown   matlab.ui.control.DropDown
         controlPanel
+        group = 'All';
     end
 
     methods
@@ -77,15 +78,10 @@ classdef OverlayView < handle
             lbl = uilabel(controlLayout, 'Text', 'Select Group:');
             lbl.Layout.Row = 1;
 
-            groupLayout = uigridlayout(controlLayout);
-            groupLayout.ColumnWidth = {'1x', '1x'};
-            groupLayout.RowHeight = {'1x'};
-            groupLayout.Layout.Row = 2;
-
-            obj.GroupDropdown = uidropdown(groupLayout, ...
+            obj.GroupDropdown = uidropdown(controlLayout, ...
                 'Items', {'All'}, ...               % initially empty
                 'Tooltip', 'Select a group');
-            obj.GroupDropdown.Layout.Column = 1;
+            obj.GroupDropdown.Layout.Row = 2;
 
             lbl = uilabel(controlLayout, 'Text', 'Select Items:');
             lbl.Layout.Row = 3;
@@ -283,7 +279,7 @@ classdef OverlayView < handle
             h.XDisplayLabels = dateLabels;
             h.YDisplayLabels = dateLabels;  % empty Y labels
 
-            overlay = obj.App.OverlayClass.createOverlay(selectedIndices);
+            overlay = obj.App.OverlayClass.createOverlay(selectedIndices,obj.group);
 
             imshow(overlay, 'Parent', obj.Axes);
 
@@ -329,7 +325,7 @@ classdef OverlayView < handle
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
 
-            overlay = obj.App.OverlayClass.createOverlay(selected);
+            overlay = obj.App.OverlayClass.createOverlay(selected, obj.group);
             if ~isempty(overlay)
                 imshow(overlay, 'Parent', obj.Axes);
             else
@@ -357,6 +353,7 @@ classdef OverlayView < handle
             end
             selectedGroupName = obj.GroupDropdown.Value;
             if strcmp(selectedGroupName, 'All')
+                obj.group = 'All';
                 % Loop through all checkboxes in the grid and update selection
                 for k = 1:numel(obj.Checkboxes)
                     obj.Checkboxes(k).Enable = 'on';
@@ -367,6 +364,7 @@ classdef OverlayView < handle
                 end
             else
                 selectedGroupIndex = str2double(selectedGroupName);
+                obj.group = selectedGroupIndex;  % Store selected group index
 
                 % Get indices of items in selected group
                 groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
