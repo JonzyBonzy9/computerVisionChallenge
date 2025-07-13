@@ -136,9 +136,9 @@ classdef DifferenceView3 < handle
                 'areaMinPixels', 100,...       % 1 pixel minimum
                 'areaMaxPixels', 200000);
             obj.ChangeTypePresets.scale.nature=struct(...
-                'blockSizePixels', 5,...        % 5 pixel block size
-                'areaMinPixels', 500,...       % 500 pixel minimum
-                'areaMaxPixels', Inf);
+                'blockSizePixels', 6,...        % 5 pixel block size
+                'areaMinPixels', 575,...       % 500 pixel minimum
+                'areaMaxPixels', 10000000);
             % ALGORITHM/TYPE dimension (combines detection method - temporal filter removed from algorithm control)
             obj.ChangeTypePresets.algorithmType = struct();
 
@@ -172,6 +172,12 @@ classdef DifferenceView3 < handle
             'method', 'urban', ...                   % Principal component analysis
             'thresholdModifier', 1.0, ...          % No threshold modification
             'areaModifier', 1.0);                  % No area modification
+
+            obj.ChangeTypePresets.algorithmType.nature = struct(...
+            'method', 'nature', ...                   % Principal component analysis
+            'thresholdModifier', 1.0, ...          % No threshold modification
+            'areaModifier', 1.0);                  % No area modification
+
            
             obj.ChangeTypePresets.algorithmType.temporal_analysis = struct(...
                 'method', 'temporal_analysis', ...     % Temporal sequence analysis
@@ -229,7 +235,7 @@ classdef DifferenceView3 < handle
                 'blockSize', 5, ...                     % 5 pixel block size for organic textures
                 'areaMinPixels', 500, ...               % 500 pixels minimum area (larger organic features)
                 'areaMaxPercent', 100, ...                % 8% max area for natural formations
-                'temporalFilter', 'medium', ...         % Medium temporal processing for gradual changes
+                'temporalFilter', 'fast', ...         % Medium temporal processing for gradual changes
                 'scale', 'nature');                      % Large spatial scale for natural features
         end
 

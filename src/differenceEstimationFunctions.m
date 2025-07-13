@@ -547,9 +547,10 @@ classdef differenceEstimationFunctions < handle
             end
 
 
-            dogDiff = imabsdiff(I1_DoG, I2_DoG);
+            [~, ssimMap] = ssim(I1, I2);
+            diffMap = 1 - ssimMap;
             
-            mask_ssim = imbinarize(dogDiff, 13.2);
+            mask_ssim = imbinarize(diffMap, 90);
             if ~skipPostprocessing
                 mask_ssim = differenceEstimationFunctions.postprocessMask(mask_ssim);
             end
@@ -651,6 +652,8 @@ classdef differenceEstimationFunctions < handle
                             mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, obj.threshold, true);
                         case 'urban'
                             mask=differenceEstimationFunctions.detectChange_urban(I1,I2,obj.threshold,true);
+                        case 'nature'
+                            mask=differenceEstimationFunctions.detectChange_nature(I1,I2,obj.threshold,true);
                         case 'pca'
                             mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, obj.threshold, true);
                         case 'temporal_analysis'
@@ -707,7 +710,7 @@ classdef differenceEstimationFunctions < handle
                     methods = {'gradient', 'edge_evolution'};
                     methodWeights = [0.7, 0.3]; % Primary: gradient, Secondary: edge evolution
 
-                case 'natural'
+                case 'nature'
                     % Natural environments: emphasize texture and smooth changes
                     methods = {'texture_change', 'absdiff'};
                     methodWeights = [0.6, 0.4]; % Primary: texture, Secondary: basic difference
