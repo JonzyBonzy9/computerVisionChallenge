@@ -58,6 +58,10 @@ classdef calcOverlay < handle
         end
         function overlay = createOverlay(obj, indices)
             disp("overlay")
+            if length(indices) == 0
+                overlay = [];
+                return
+            end
             group = 1;
             % check whether overlay was already calculated
             if ~obj.resultAvailable

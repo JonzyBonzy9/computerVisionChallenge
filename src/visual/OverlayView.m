@@ -129,11 +129,14 @@ classdef OverlayView < handle
 
         function onImLoad(obj)
             % Update panel
+            disp("onImLoad")
             obj.dataAvailable = true;
             %obj.controlPanel.Scrollable = 'off';
             %obj.controlPanel.Scrollable = 'on';  % Toggle to re-check scroll need
+            obj.reset();
             obj.updateCheckboxes();
             %imshow(obj.App.OverlayClass.imageArray{1}.data, 'Parent', obj.Axes);
+            disp("finished imload")
         end
 
         function show(obj)
@@ -147,11 +150,13 @@ classdef OverlayView < handle
         end
 
         function update(obj)
+            disp("update")
             % update view if data is available
             if ~obj.dataAvailable
                 return;
             end
             obj.onCheckboxChanged();
+            disp("update finished")
 
         end
 
@@ -208,10 +213,10 @@ classdef OverlayView < handle
                 delete(allchild(obj.CheckboxGrid));
             end
 
+            % Clear the checkboxes array to prevent accessing deleted objects
+            obj.Checkboxes = matlab.ui.control.CheckBox.empty;
             % TODO: reset confusion matrix, low priority
-
         end
-
 
         function printStatus(obj, fmt, varargin)
             % Format the string just like fprintf
@@ -293,6 +298,9 @@ classdef OverlayView < handle
 
     methods (Access = private)
         function clearCheckboxes(obj)
+            if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
+                return;
+            end
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = false;
             end
@@ -300,6 +308,9 @@ classdef OverlayView < handle
 
         end
         function allCheckboxes(obj)
+            if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
+                return;
+            end
             for i = 1:length(obj.Checkboxes)
                 obj.Checkboxes(i).Value = true;
             end
@@ -308,6 +319,12 @@ classdef OverlayView < handle
         end
 
         function onCheckboxChanged(obj)
+            % Check if checkboxes exist and are valid before accessing them
+            if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
+                % Clear display if no valid checkboxes
+                cla(obj.Axes);
+                return;
+            end
 
             % Get current checkbox states
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
@@ -335,8 +352,11 @@ classdef OverlayView < handle
             if isempty(obj.App.OverlayClass.groups)
                 return
             end
+            if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
+                return;
+            end
             selectedGroupName = obj.GroupDropdown.Value;
-            if selectedGroupName == 'All'
+            if strcmp(selectedGroupName, 'All')
                 % Loop through all checkboxes in the grid and update selection
                 for k = 1:numel(obj.Checkboxes)
                     obj.Checkboxes(k).Enable = 'on';
