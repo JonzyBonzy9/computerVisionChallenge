@@ -58,7 +58,7 @@ classdef calcOverlay < handle
         end
         function obj = setProperties(obj)
         end
-        function overlay = createOverlay(obj, idxs)
+        function overlay = createOverlay2(obj, idxs)
             disp("overlay")
 
             if isempty(idxs)
@@ -112,10 +112,30 @@ classdef calcOverlay < handle
             overlay = overlay ./ cat(3, alphaMaskSum, alphaMaskSum, alphaMaskSum);
             overlay = im2uint8(overlay);
         end
+
+        function overlay = createOverlay(obj, indices)
+            disp("overlay")
+            group = 1;
+            % check whether overlay was already calculated
+            if ~obj.resultAvailable
+                for i = 1:length(indices)
+                    idx = indices(i);
+                    overlay = obj.imageArray{idx}.data;
+                    overlay = overlay ./ length(indices);
+                end
+                return
+            end
+            validSelection = intersect(indices, obj.lastIndices);
+            [~, localIdxs] = ismember(validSelection, obj.lastIndices);
+            overlay = sum(obj.imageStack{group}(:,:,:,localIdxs), 4);  % Sum across the 4th dimension (N images in group)
+            overlay = overlay ./ length(validSelection);  % Average the sum
+        end
+
         function scoreMatrix = createScoreConfusion(obj)
             scoreMatrix = obj.scoreMatrix;  % Return the score matrix for further analysis
             scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
         end
+
         function plotReachabilityGraph(obj, ax)
             filteredImages = obj.imageArray(obj.lastIndices);
             transformImageIDs = cellfun(@(im) im.id, filteredImages);

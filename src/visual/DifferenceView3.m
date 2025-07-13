@@ -57,6 +57,7 @@ classdef DifferenceView3 < handle
 
         % Image selection (checkbox-based like DifferenceView)
         GroupDropdown       matlab.ui.control.DropDown
+        RefreshGroupButton  matlab.ui.control.Button
         CheckboxGrid        matlab.ui.container.GridLayout
         Checkboxes          matlab.ui.control.CheckBox
 
@@ -277,12 +278,27 @@ classdef DifferenceView3 < handle
             imageLayout.RowSpacing = 5;
             imageLayout.Padding = [10, 10, 10, 10];
 
-            % Group Selection dropdown
-            obj.GroupDropdown = uidropdown(imageLayout, ...
+            % Group Selection area with dropdown and refresh button
+            groupSelectionGrid = uigridlayout(imageLayout);
+            groupSelectionGrid.Layout.Row = 1;
+            groupSelectionGrid.RowHeight = {'fit'};
+            groupSelectionGrid.ColumnWidth = {'1x', 'fit'};
+            groupSelectionGrid.ColumnSpacing = 5;
+
+            obj.GroupDropdown = uidropdown(groupSelectionGrid, ...
                 'Items', {'All'}, ...
                 'Value', 'All', ...
                 'Tooltip', 'Select image group');
             obj.GroupDropdown.Layout.Row = 1;
+            obj.GroupDropdown.Layout.Column = 1;
+
+            % Refresh button to re-trigger group selection
+            obj.RefreshGroupButton = uibutton(groupSelectionGrid, 'push', ...
+                'Text', '↻', ...
+                'Tooltip', 'Refresh/Re-apply current group selection', ...
+                'FontSize', 12);
+            obj.RefreshGroupButton.Layout.Row = 1;
+            obj.RefreshGroupButton.Layout.Column = 2;
 
             % Image Selection checkboxes
             obj.CheckboxGrid = uigridlayout(imageLayout);
@@ -488,26 +504,26 @@ classdef DifferenceView3 < handle
                 'Tooltip', 'Gaussian blend amount (log scale)');
             obj.SigmaSlider.Layout.Row = 2;
 
+            % === Mask Navigation ===
+            maskNavLabel = uilabel(individualGrid, 'Text', 'Mask Navigation:', 'FontWeight', 'bold');
+            maskNavLabel.Layout.Row = 3;
+
+            obj.MaskLabel = uilabel(individualGrid, 'Text', 'Mask: 1 of 1');
+            obj.MaskLabel.Layout.Row = 4;
+
+            obj.MaskSlider = uislider(individualGrid, ...
+                'Limits', [1, 2], ...
+                'Value', 1, ...
+                'MinorTicks', []);
+            obj.MaskSlider.Layout.Row = 5;
+            obj.MaskSlider.Enable = 'off';
+
             % === Combined Mode Controls ===
             obj.CombinationDropdown = uidropdown(combinedGrid, ...
                 'Items', {'Heatmap', 'Temporal Overlay', 'Sum', 'Average', 'Max'}, ...
                 'Value', 'Heatmap', ...
                 'Tooltip', 'How to combine multiple masks');
             obj.CombinationDropdown.Layout.Row = 1;
-
-            % === Mask Navigation ===
-            maskNavLabel = uilabel(individualGrid, 'Text', 'Mask Navigation:', 'FontWeight', 'bold');
-            maskNavLabel.Layout.Row = 3;
-
-            obj.MaskLabel = uilabel(combinedGrid, 'Text', 'Mask: 1 of 1');
-            obj.MaskLabel.Layout.Row = 4;
-
-            obj.MaskSlider = uislider(combinedGrid, ...
-                'Limits', [1, 2], ...
-                'Value', 1, ...
-                'MinorTicks', []);
-            obj.MaskSlider.Layout.Row = 5;
-            obj.MaskSlider.Enable = 'off';
         end
 
         function section = createSection(~, parent, title, row)
@@ -546,6 +562,7 @@ classdef DifferenceView3 < handle
 
             % Group selection (like DifferenceView)
             obj.GroupDropdown.ValueChangedFcn = @(src, event) obj.onGroupChanged();
+            obj.RefreshGroupButton.ButtonPushedFcn = @(src, event) obj.onGroupChanged();
         end
 
         function onAlgorithmTypeChanged(obj)
@@ -814,11 +831,6 @@ classdef DifferenceView3 < handle
                 % Setup mask navigation
                 if ~isempty(obj.currentMasks)
                     % Create image and mask stacks for TimeSlider-style blending
-                    obj.createImageAndMaskStacks(selectedIndices);
-
-                    obj.MaskSlider.Limits = [1, length(obj.currentMasks)];
-                    obj.MaskSlider.Value = 1;
-                    obj.MaskLabel.Text = sprintf('Mask: 1 / %d', length(obj.currentMasks));
                     obj.dataAvailable = true;
 
                     % Update visualization
@@ -897,46 +909,23 @@ classdef DifferenceView3 < handle
             if isempty(obj.App.OverlayClass.groups)
                 return
             end
-            selectedGroupName = obj.GroupDropdown.Value;
-            if strcmp(selectedGroupName, 'All')
-                % Loop through all checkboxes in the grid and update selection
-                for k = 1:numel(obj.Checkboxes)
-                    lastIndices = obj.App.OverlayClass.lastIndices;
-                    if ismember(k, lastIndices)
-                        obj.Checkboxes(k).Value = false;
-                        obj.Checkboxes(k).Enable = 'on';
-                        obj.onCheckboxChanged();
-                    end
-                end
-            else
-                selectedGroupIndex = str2double(selectedGroupName);
+            group = str2double(obj.GroupDropdown.Value);
+            % Get indices of items in selected group
+            groupIndices = obj.App.OverlayClass.groups{group};
 
-                % Get indices of items in selected group
-                groupIndices = obj.App.OverlayClass.groups{selectedGroupIndex};
-
-                % Loop through all checkboxes in the grid and update selection
-                for k = 1:numel(obj.Checkboxes)
-                    if ismember(k, groupIndices)
-                        obj.Checkboxes(k).Value = false;
-                        obj.Checkboxes(k).Enable = 'on';
-                        obj.onCheckboxChanged();
-                    else
-                        obj.Checkboxes(k).Value = false;
-                        obj.Checkboxes(k).Enable = 'off';
-                        obj.onCheckboxChanged();
-                    end
+            % Loop through all checkboxes in the grid and update selection
+            for k = 1:numel(obj.Checkboxes)
+                if ismember(k, groupIndices)
+                    obj.Checkboxes(k).Value = true;
+                    obj.Checkboxes(k).Enable = 'on';
+                    obj.onCheckboxChanged();
+                else
+                    obj.Checkboxes(k).Value = false;
+                    obj.Checkboxes(k).Enable = 'off';
+                    obj.onCheckboxChanged();
                 end
             end
-        end
-
-        function onSelectAll(obj)
-            % Select all checkboxes (like DifferenceView)
-            for i = 1:length(obj.Checkboxes)
-                if isvalid(obj.Checkboxes(i))
-                    obj.Checkboxes(i).Value = true;
-                end
-            end
-            obj.updateStatus('All images selected');
+            obj.updateSlider();
         end
 
         function onClearAll(obj)
@@ -954,6 +943,7 @@ classdef DifferenceView3 < handle
             visualizationType = obj.VisualizationDropdown.Value;
             switch visualizationType
                 case 'Individual'
+                    blendImages(obj.MainAxes, str2double(obj.GroupDropdown.Value));
                 case 'Combined'
                     if obj.ImagesCheckbox.Value
                         overlay = obj.App.OverlayClass.createOverlay(obj.App.OverlayClass.lastIndices);
@@ -1067,119 +1057,63 @@ classdef DifferenceView3 < handle
             xlabel(axes, sprintf('Max overlap: %d regions', sum(combinedMask(:) > 0)));
         end
 
-        function createImageAndMaskStacks(obj, selectedIndices)
-            % Create 4D image and mask stacks for TimeSlider-style blending
-            try
-                % Get filtered images that match selected indices
-                isInSelection = ismember(obj.App.DifferenceClass.overlay.lastIndices, selectedIndices);
-                filteredImages = obj.App.DifferenceClass.overlay.warpedImages(isInSelection);
+        function blendImages(obj, axes, group)
+            value = obj.MaskSlider.Value;
+            % check whether overlay data is available
+            if ~obj.App.OverlayClass.resultAvailable
+                % if not, show raw images
+                value = round(value);
 
-                if ~isempty(filteredImages)
-                    % Create image stack
-                    [h, w, c] = size(filteredImages{1});
-                    numImages = length(filteredImages);
-                    obj.imageStack = zeros(h, w, c, numImages, 'like', filteredImages{1});
+                imshow(obj.App.OverlayClass.imageArray{value}.data, 'Parent', axes);
+                obj.MaskSlider.Value = value;
+            else
+                % show warped images
+                N = size(obj.App.OverlayClass.imageStack{group}, 4);
 
-                    for i = 1:numImages
-                        obj.imageStack(:,:,:,i) = filteredImages{i};
-                    end
+                % Compute Gaussian weights centered at slider value
+                x = 1:N;
+                weights = exp(-0.5 * ((x - value) / obj.sigma).^2);
+                weights = weights / sum(weights);  % Normalize
 
-                    % Create mask stack by converting binary masks to RGB for blending
-                    if ~isempty(obj.currentMasks)
-                        obj.maskStack = zeros(h, w, c, length(obj.currentMasks), 'like', filteredImages{1});
+                % Blend images
+                empty = zeros(size(obj.App.OverlayClass.imageStack{group},1), size(obj.App.OverlayClass.imageStack{group},2), size(obj.App.OverlayClass.imageStack{group},3), 'like', obj.App.OverlayClass.imageStack{group});
 
-                        for i = 1:length(obj.currentMasks)
-                            % Convert binary mask to colored overlay (red for changes)
-                            mask = obj.currentMasks{i};
-                            if size(mask, 1) == h && size(mask, 2) == w
-                                % Create red overlay for changes
-                                coloredMask = zeros(h, w, c, 'like', filteredImages{1});
-                                if c >= 3
-                                    coloredMask(:,:,1) = double(mask) * 255; % Red channel for RGB
-                                    coloredMask(:,:,2) = 0; % Green channel
-                                    coloredMask(:,:,3) = 0; % Blue channel
-                                else
-                                    coloredMask(:,:,1) = double(mask) * 255; % Grayscale
-                                end
-                                obj.maskStack(:,:,:,i) = coloredMask;
-                            end
-                        end
+                % Always start by clearing the axes
+                cla(axes);
+
+                % Display blended images first (if checkbox is selected)
+                blended = empty;
+                if obj.ImagesCheckbox.Value
+                    for i = 1:N
+                        blended = blended + weights(i) * obj.App.OverlayClass.imageStack{group}(:,:,:,i);
                     end
                 end
 
-            catch ME
-                % If stack creation fails, clear stacks
-                obj.imageStack = [];
-                obj.maskStack = [];
-                warning('DifferenceView3:StackCreation', 'Failed to create image/mask stacks: %s', ME.message);
+                % Overlay the mask on top (if checkbox is selected)
+                maskBlended = empty(:,:,1);  % Initialize maskBlended as a single channel
+                if obj.MasksCheckbox.Value
+                    maskCount = 1;
+                    lastMaskIndice = obj.App.DifferenceClass.lastIndices(end);
+                    for i = 1:N
+                        indice = obj.App.OverlayClass.groups{group}(i);
+                        maskIndice = obj.App.DifferenceClass.lastIndices(maskCount);
+                        if  maskIndice == indice && ~(maskIndice == lastMaskIndice)
+                            maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount);
+                            maskCount = maskCount + 1;
+                        elseif indice < lastMaskIndice && maskCount ~= 1
+                            maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount-1);
+                        else
+                            % No mask to add for this image (stays zero)
+                        end
+                    end
+                    [H, W] = size(maskBlended);
+                    redOverlay = zeros(H, W, 3);
+                    redOverlay(:,:,1) = maskBlended;
+                    maskBlended = redOverlay;
+                end
+                blended = blended + maskBlended;
+                imshow(blended, 'Parent', axes);
             end
-        end
-
-        % Legacy methods that will be moved to Analysis tab
-        function displayCombinedOverlay(obj, axes, combinationType)
-            % Display combined masks as colored overlay
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
-                return;
-            end
-
-            % Create RGB overlay
-            [height, width] = size(obj.currentMasks{1});
-            overlayImage = zeros(height, width, 3);
-
-            switch lower(combinationType)
-                case 'sum'
-                    combinedMask = zeros(size(obj.currentMasks{1}));
-                    for i = 1:length(obj.currentMasks)
-                        combinedMask = combinedMask + double(obj.currentMasks{i});
-                    end
-                    % Normalize and apply to red channel
-                    if max(combinedMask(:)) > 0
-                        overlayImage(:,:,1) = combinedMask / max(combinedMask(:));
-                    end
-                    titleStr = 'Combined Change Overlay (Sum)';
-
-                case 'max'
-                    combinedMask = zeros(size(obj.currentMasks{1}));
-                    for i = 1:length(obj.currentMasks)
-                        combinedMask = max(combinedMask, double(obj.currentMasks{i}));
-                    end
-                    overlayImage(:,:,1) = double(combinedMask);
-                    titleStr = 'Combined Change Overlay (Max)';
-
-                case 'average'
-                    combinedMask = zeros(size(obj.currentMasks{1}));
-                    for i = 1:length(obj.currentMasks)
-                        combinedMask = combinedMask + double(obj.currentMasks{i});
-                    end
-                    combinedMask = combinedMask / length(obj.currentMasks);
-                    overlayImage(:,:,1) = combinedMask;
-                    titleStr = 'Combined Change Overlay (Average)';
-
-                case 'weighted'
-                    % Show temporal progression with different colors
-                    numMasks = length(obj.currentMasks);
-                    for i = 1:numMasks
-                        weight = i / numMasks; % Progressive weighting
-                        mask = double(obj.currentMasks{i});
-                        overlayImage(:,:,1) = overlayImage(:,:,1) + (1-weight) * mask; % Red for early
-                        overlayImage(:,:,2) = overlayImage(:,:,2) + weight * mask;     % Green for late
-                    end
-                    % Normalize
-                    maxVal = max(overlayImage(:));
-                    if maxVal > 0
-                        overlayImage = overlayImage / maxVal;
-                    end
-                    titleStr = 'Combined Change Overlay (Temporal Weighted)';
-
-                otherwise
-                    overlayImage(:,:,1) = double(obj.currentMasks{1});
-                    titleStr = 'Combined Change Overlay';
-            end
-
-            imshow(overlayImage, 'Parent', axes);
-            title(axes, titleStr);
-            xlabel(axes, sprintf('Combined from %d masks', length(obj.currentMasks)));
         end
 
         function displayDifferenceEvolution(obj, axes)
@@ -1371,7 +1305,10 @@ classdef DifferenceView3 < handle
                 return;
             end
 
-            obj.updateGroups(obj.App.OverlayClass.groups);
+            % updated after overlay is calculated
+            if obj.App.OverlayClass.resultAvailable
+                obj.updateGroups(obj.App.OverlayClass.groups);
+            end
 
             % Clear old checkboxes from UI and memory
             delete(obj.CheckboxGrid.Children);
@@ -1408,6 +1345,7 @@ classdef DifferenceView3 < handle
                 cb.Layout.Row = i;
                 obj.Checkboxes(i) = cb;
             end
+            obj.updateSlider()
         end
 
         function updateImageCheckboxes(obj)
@@ -1454,9 +1392,7 @@ classdef DifferenceView3 < handle
             % Update groups dropdown (like DifferenceView)
             numGroups = numel(groups);
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
-
-            % Update dropdown items
-            obj.GroupDropdown.Items = [{'All'}, groupNames];
+            obj.GroupDropdown.Items = groupNames;
 
             % Attach callback for dropdown selection change (like DifferenceView)
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupChanged();
@@ -1705,6 +1641,20 @@ classdef DifferenceView3 < handle
             if obj.dataAvailable && strcmp(obj.VisualizationDropdown.Value, 'Individual')
                 obj.updateVisualization();
             end
+        end
+        function updateSlider(obj)
+            if ~obj.App.OverlayClass.resultAvailable
+                indices = 1:size(obj.imageStack, 4);
+            else
+                indices = obj.App.OverlayClass.groups{str2double(obj.GroupDropdown.Value)};
+            end
+
+            dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
+            N = length(indices);
+            obj.MaskSlider.Limits = [1, N];
+            obj.MaskSlider.MajorTicks = 1:N;
+            obj.MaskSlider.MajorTickLabels = dates;
+            obj.MaskSlider.Value = 1;
         end
     end
 
