@@ -53,7 +53,7 @@ classdef DifferenceView3 < handle
 
         % Mask navigation
         MaskSlider          matlab.ui.control.Slider
-        MaskLabel           matlab.ui.control.Label
+        MaskSliderAxes      matlab.ui.control.UIAxes
 
         % Image selection (checkbox-based like DifferenceView)
         GroupDropdown       matlab.ui.control.DropDown
@@ -180,7 +180,7 @@ classdef DifferenceView3 < handle
             else
                 obj.CalculateButton.Enable = 'off';
                 obj.ImagesCheckbox.Enable = 'off';
-                obj.ImagesCheckbox.Value = false;  % Disable and uncheck
+                obj.ImagesCheckbox.Value = true;  % Disable and uncheck
                 obj.updateGroups({});  % Clear groups if no results available
             end
 
@@ -258,17 +258,22 @@ classdef DifferenceView3 < handle
 
         function updateSlider(obj)
             if ~obj.App.OverlayClass.resultAvailable
-                indices = 1:size(obj.imageStack, 4);
+                indices = 1:numel(obj.App.OverlayClass.imageArray);
             else
                 indices = obj.App.OverlayClass.groups{str2double(obj.GroupDropdown.Value)};
             end
 
-            dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
+            dates = cellfun(@(s) datestr(s.id, 'mmm yyyy'), obj.App.OverlayClass.imageArray(indices), 'UniformOutput', false);
             N = length(indices);
             obj.MaskSlider.Limits = [1, N];
             obj.MaskSlider.MajorTicks = 1:N;
-            obj.MaskSlider.MajorTickLabels = dates;
+            obj.MaskSlider.MajorTickLabels = {};
             obj.MaskSlider.Value = 1;
+
+            % Update axes below slider with rotated labels
+            obj.MaskSliderAxes.XLim = [1, N];
+            obj.MaskSliderAxes.XTick = 1:N;
+            obj.MaskSliderAxes.XTickLabel = dates;
         end
 
         function initializePresets(obj)
@@ -643,7 +648,7 @@ classdef DifferenceView3 < handle
             obj.individualPanel = obj.createSection(visualLayout, 'Individual Mode Controls', currentRow + 2);
             obj.individualPanel.Visible = 'off';  % Initially hidden
             individualGrid = uigridlayout(obj.individualPanel);
-            individualGrid.RowHeight = {'fit', 'fit'};
+            individualGrid.RowHeight = {'fit', 'fit', 'fit', 60, 'fit'};
             individualGrid.ColumnWidth = {'1x'};
             obj.combinedPanel = obj.createSection(visualLayout, 'Combined Mode Controls', currentRow + 2);
             obj.combinedPanel.Visible = 'on';
@@ -664,18 +669,35 @@ classdef DifferenceView3 < handle
             obj.SigmaSlider.Layout.Row = 2;
 
             % === Mask Navigation ===
-            maskNavLabel = uilabel(individualGrid, 'Text', 'Mask Navigation:', 'FontWeight', 'bold');
+            maskNavLabel = uilabel(individualGrid, 'Text', 'TimeSlider:', 'FontWeight', 'bold');
             maskNavLabel.Layout.Row = 3;
 
-            obj.MaskLabel = uilabel(individualGrid, 'Text', 'Mask: 1 of 1');
-            obj.MaskLabel.Layout.Row = 4;
 
             obj.MaskSlider = uislider(individualGrid, ...
                 'Limits', [1, 2], ...
                 'Value', 1, ...
-                'MinorTicks', []);
+                'MajorTicks', [1, 2], ...
+                'MajorTickLabels', {}, ...
+                'Tooltip', 'Select date to display');
             obj.MaskSlider.Layout.Row = 5;
-            obj.MaskSlider.Enable = 'off';
+
+            % Axes for rotated tick labels below the slider
+            obj.MaskSliderAxes = uiaxes(individualGrid);
+            obj.MaskSliderAxes.Layout.Row = 4;
+            obj.MaskSliderAxes.XLim = [1, 2];
+            obj.MaskSliderAxes.YLim = [0, 1];
+            obj.MaskSliderAxes.XTick = [1, 2];
+            obj.MaskSliderAxes.XTickLabel = {'', ''};
+            obj.MaskSliderAxes.XTickLabelRotation = 80;
+            obj.MaskSliderAxes.YTick = [];
+            obj.MaskSliderAxes.YTickLabel = {};
+            obj.MaskSliderAxes.Box = 'off';
+            obj.MaskSliderAxes.Color = 'none';  % Transparent background
+            obj.MaskSliderAxes.XColor = [1, 1, 1];  % Black tick labels
+            obj.MaskSliderAxes.YAxis.Visible = 'off';
+            obj.MaskSliderAxes.XAxis.TickLength = [0 0];  % Hide tick marks, keep labels
+            obj.MaskSliderAxes.Interactions = [];  % Disable all interactions
+            obj.MaskSliderAxes.Toolbar.Visible = 'off';  % Hide toolbar
 
             % === Combined Mode Controls ===
             obj.CombinationDropdown = uidropdown(combinedGrid, ...
@@ -1036,12 +1058,6 @@ classdef DifferenceView3 < handle
             title(obj.AnalysisAxes, 'Change Analysis');
             title(obj.StatsAxes, 'Change Statistics');
 
-            % Reset mask navigation
-            obj.MaskSlider.Enable = 'off';
-            obj.MaskSlider.Limits = [1, 2];
-            obj.MaskSlider.Value = 1;
-            obj.MaskLabel.Text = 'Mask: 1 of 1';
-
             obj.updateStatus('Results cleared');
         end
 
@@ -1105,7 +1121,9 @@ classdef DifferenceView3 < handle
             visualizationType = obj.VisualizationDropdown.Value;
             switch visualizationType
                 case 'Individual'
-                    blendImages(obj.MainAxes, str2double(obj.GroupDropdown.Value));
+                    group = str2double(obj.GroupDropdown.Value);
+                    disp(group);
+                    obj.blendImages(obj.MainAxes, group);
                 case 'Combined'
                     if obj.ImagesCheckbox.Value
                         overlay = obj.App.OverlayClass.createOverlay(obj.App.OverlayClass.lastIndices);
@@ -1220,12 +1238,13 @@ classdef DifferenceView3 < handle
         end
 
         function blendImages(obj, axes, group)
+            disp(group)
             value = obj.MaskSlider.Value;
             % check whether overlay data is available
             if ~obj.App.OverlayClass.resultAvailable
                 % if not, show raw images
                 value = round(value);
-
+                disp(value);
                 imshow(obj.App.OverlayClass.imageArray{value}.data, 'Parent', axes);
                 obj.MaskSlider.Value = value;
             else
