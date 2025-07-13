@@ -64,7 +64,7 @@ classdef TimeSliderOverlayView < handle
             obj.Slider = uislider(obj.SliderGrid);
             obj.Slider.Layout.Row = 1;
             obj.Slider.Layout.Column = 2;
-            obj.Slider.ValueChangedFcn = @(src,event) obj.blendImages2();
+            obj.Slider.ValueChangedFcn = @(src,event) obj.blendImages();
 
             % Create control panel
             obj.controlPanel = uipanel(obj.Grid2);
@@ -102,13 +102,13 @@ classdef TimeSliderOverlayView < handle
             obj.imCheck = uicheckbox(controlLayout);
             obj.imCheck.Text = "Images";
             obj.imCheck.Enable = 'off';
-            obj.imCheck.ValueChangedFcn = @(src, event) obj.blendImages2();
+            obj.imCheck.ValueChangedFcn = @(src, event) obj.blendImages();
             obj.imCheck.Layout.Row = 6;
 
             obj.diffCheck = uicheckbox(controlLayout);
             obj.diffCheck.Text = "Difference";
             obj.diffCheck.Enable = 'off';
-            obj.diffCheck.ValueChangedFcn = @(src, event) obj.blendImages2();
+            obj.diffCheck.ValueChangedFcn = @(src, event) obj.blendImages();
             obj.diffCheck.Layout.Row = 7;
         end
 
@@ -133,99 +133,27 @@ classdef TimeSliderOverlayView < handle
         end
 
         function update(obj)
-            % get data into efficient image stack for images
-            %disp(obj.App.OverlayClass.resultAvailable);
             if obj.App.OverlayClass.resultAvailable
-                obj.updateGroups(obj.App.OverlayClass.groups);
-                selectedGroupName = obj.GroupDropdown.Value;
-                selectedGroupIndex = str2double(selectedGroupName);
-
-                indices = obj.App.OverlayClass.groups{selectedGroupIndex};
-                filteredImages = obj.App.OverlayClass.warpedImages(indices);
-                obj.imageStack = cat(4, filteredImages{:});
                 obj.imCheck.Enable = 'on';
-                obj.imCheck.Value = true;
-                % get data into efficient image stack for masks
-                %disp("results available?")
-                %disp(obj.App.DifferenceClass.resultAvailable)
-                if obj.App.DifferenceClass.resultAvailable
-                    maskList = cell(1, numel(indices));
-                    imgSize = size(obj.App.OverlayClass.warpedImages{1});
-                    emptyMask = zeros(imgSize(1), imgSize(2));
-                    emptyMask = cat(3, emptyMask, emptyMask, emptyMask);
-                    for k = 1:numel(indices)
-                        currentIndex = indices(k);
-                        match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
-                        if match(end)
-                            maskList{k} = emptyMask;
-                        elseif any(match)
-                            mask = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
-                            maskList{k} = cat(3, mask, zeros(size(mask)), zeros(size(mask)));
-                        elseif k==1
-                            maskList{k} = emptyMask;
-                        else
-                            maskList{k} = maskList{k-1};
-                        end
-                    end
-                    obj.maskStack = cat(4, maskList{:});
-                    obj.diffCheck.Enable = 'on';
-                    obj.diffCheck.Value = true;
-                else
-                    obj.diffCheck.Enable = 'off';
-                    obj.diffCheck.Value = false;
-                end
+                obj.imCheck.Value = true;  % Enable and check by default
             else
-                images = cellfun(@(im) im.data, obj.App.OverlayClass.imageArray, 'UniformOutput',false);
-                obj.imageStack = cat(4, images{:});
                 obj.imCheck.Enable = 'off';
-                obj.imCheck.Value = true;
             end
-            % move data to gpu if available
-            if gpuDeviceCount > 0
-                obj.imageStack = gpuArray(obj.imageStack);
-                obj.maskStack = gpuArray(obj.maskStack);
+            if obj.App.DifferenceClass.resultAvailable
+                obj.diffCheck.Enable = 'on';
+                obj.diffCheck.Value = true;  % Enable and check by default
+            else
+                obj.diffCheck.Enable = 'off';
+                obj.diffCheck.Value = false;  % Disable and uncheck
             end
+            obj.updateGroups(obj.App.OverlayClass.groups);
             obj.updateSlider()
-            obj.blendImages2()
+            obj.blendImages()
         end
     end
 
     methods (Access = private)
         function blendImages(obj)
-            value = obj.Slider.Value;
-            % check whether overlay data is available
-            if ~obj.App.OverlayClass.resultAvailable
-                % if not, show raw images
-                value = round(value);
-                imshow(obj.imageStack(:,:,:,value), 'Parent', obj.Axes);
-                obj.Slider.Value = value;
-            else
-                % show warped images
-                N = size(obj.imageStack, 4);
-
-                % Compute Gaussian weights centered at slider value
-                x = 1:N;
-                weights = exp(-0.5 * ((x - value) / obj.sigma).^2);
-                weights = weights / sum(weights);  % Normalize
-
-                % Blend images
-                blended = zeros(size(obj.imageStack,1), size(obj.imageStack,2), size(obj.imageStack,3), 'like', obj.imageStack);
-                if obj.imCheck.Value
-                    for i = 1:N
-                        blended = blended + weights(i) * obj.imageStack(:,:,:,i);
-                    end
-                end
-                if obj.diffCheck.Value
-                    for i = 1:N
-                        blended = blended + weights(i) * obj.maskStack(:,:,:,i);
-                    end
-                end
-
-                % Display
-                imshow(blended, 'Parent', obj.Axes);
-            end
-        end
-        function blendImages2(obj)
             value = obj.Slider.Value;
             % check whether overlay data is available
             if ~obj.App.OverlayClass.resultAvailable
@@ -324,7 +252,7 @@ classdef TimeSliderOverlayView < handle
             obj.sigma = 10^(obj.GaussSlider.Value);
 
             % Now use sigma in your blending function
-            obj.blendImages2()
+            obj.blendImages()
         end
     end
 
