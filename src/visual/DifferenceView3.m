@@ -107,8 +107,168 @@ classdef DifferenceView3 < handle
             obj.setupEventHandlers();
 
             % Initialize UI state and set default control visibility
-            obj.updateUI();
             obj.onVisualizationChanged(); % Set initial control visibility
+        end
+
+        %% Interface methods for the main app
+        function onImLoad(obj)
+            % Called when new images are loaded - reset the view completely
+            obj.dataAvailable = true; % Set to true like DifferenceView
+            obj.currentMasks = [];
+            obj.currentResults = [];
+
+            % Clear visualizations
+            cla(obj.MainAxes);
+            cla(obj.AnalysisAxes);
+            cla(obj.StatsAxes);
+
+            title(obj.MainAxes, 'Change Detection Visualization');
+            title(obj.AnalysisAxes, 'Change Analysis');
+            title(obj.StatsAxes, 'Change Statistics');
+
+            % Reset parameters to defaults (logarithmic scale for areas)
+            obj.ThresholdSlider.Value = 20;    % 20% threshold (within [1, 100] range)
+            obj.BlockSizeSlider.Value = 3;     % 3 pixels block size (within [1, 100] range)
+            obj.AreaMinSlider.Value = 2;       % Log scale: 10^2 = 100 pixels
+            obj.AreaMaxSlider.Value = 4;       % Log scale: 10^4 = 10000 pixels
+
+            % Reset two-dimensional presets
+            obj.ScaleDropdown.Value = 'Custom';
+            obj.TemporalFilterDropdown.Value = 'none';
+            % Update area slider limits based on available images
+            % Get image dimensions from the overlay class
+            try
+                % Try to get image size from the first available image
+                imageArray = obj.App.OverlayClass.imageArray;
+                if ~isempty(imageArray)
+                    firstImage = imageArray{1}.data; % Assuming image data is in .data field
+                    if ~isempty(firstImage)
+                        obj.currentImageSize = [size(firstImage, 1), size(firstImage, 2)];
+                        obj.totalPixels = prod(obj.currentImageSize);
+                        obj.updateAreaSliderLimits();
+                    end
+                end
+            catch
+                % If we can't get image size, use defaults
+                obj.updateAreaSliderLimits();
+            end
+            obj.update();
+            obj.onCustomParameterChanged();
+        end
+
+        function show(obj)
+            obj.Grid.Visible = 'on';
+            obj.update();
+        end
+
+        function hide(obj)
+            obj.Grid.Visible = 'off';
+        end
+
+        function update(obj)
+            % Update view if data is available (like DifferenceView)
+            if ~obj.dataAvailable
+                return;
+            end
+
+            % updated after overlay is calculated
+            if obj.App.OverlayClass.resultAvailable
+                obj.CalculateButton.Enable = 'on';
+                obj.ImagesCheckbox.Enable = 'on';
+                obj.ImagesCheckbox.Value = true;  % Enable and check by default
+                obj.updateGroups(obj.App.OverlayClass.groups);
+            else
+                obj.CalculateButton.Enable = 'off';
+                obj.ImagesCheckbox.Enable = 'off';
+                obj.ImagesCheckbox.Value = false;  % Disable and uncheck
+                obj.updateGroups({});  % Clear groups if no results available
+            end
+
+            % dependent on whether difference data is available
+            if obj.App.DifferenceClass.resultAvailable
+                obj.MasksCheckbox.Enable = 'on';
+                obj.MasksCheckbox.Value = true;  % Enable and check by default
+            else
+                obj.MasksCheckbox.Enable = 'off';
+                obj.MasksCheckbox.Value = false;  % Disable and uncheck
+            end
+
+            obj.updateCheckboxes();  % Update checkboxes based on current state
+            obj.updateSlider();
+        end
+
+        function updateCheckboxes(obj)
+            % Clear old checkboxes from UI and memory
+            delete(obj.CheckboxGrid.Children);
+            obj.Checkboxes = matlab.ui.control.CheckBox.empty;
+
+            imageArray = obj.App.OverlayClass.imageArray;
+            n = length(imageArray);
+
+            % One row per checkbox
+            obj.CheckboxGrid.RowHeight = repmat({'fit'}, 1, n);
+
+            if obj.App.DifferenceClass.resultAvailable
+                for i = 1:n
+                    dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
+                    isChecked = ismember(i, obj.App.DifferenceClass.lastIndices);
+                    isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
+                    cb = uicheckbox(obj.CheckboxGrid, ...
+                        'Text', dateStr, ...
+                        'Value', isChecked, ...
+                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                    % Set font color depending on previous use
+                    if isChecked
+                        cb.FontColor = [0, 1, 0];  % green if used in last calculation
+                    else
+                        cb.FontColor = [1, 1, 1];  % White otherwise
+                    end
+                    cb.Layout.Row = i;
+                    cb.Enable = isAvailable;  % Enable only if available in overlay
+                    obj.Checkboxes(i) = cb;
+                end
+            elseif obj.App.OverlayClass.resultAvailable
+                for i = 1:n
+                    dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
+                    isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
+                    cb = uicheckbox(obj.CheckboxGrid, ...
+                        'Text', dateStr, ...
+                        'Value', isAvailable, ...
+                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                    cb.FontColor = [1, 1, 1];  % White
+                    cb.Layout.Row = i;
+                    cb.Enable = isAvailable;  % Enable only if available in overlay
+                    obj.Checkboxes(i) = cb;
+                end
+            else
+                for i=1:n
+                    dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
+                    cb = uicheckbox(obj.CheckboxGrid, ...
+                        'Text', dateStr, ...
+                        'Value', false, ...
+                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                    cb.FontColor = [1, 1, 1];  % White
+                    cb.Layout.Row = i;
+                    cb.Enable = false;  % Disable if no results available
+                    obj.Checkboxes(i) = cb;
+                end
+
+            end
+        end
+
+        function updateSlider(obj)
+            if ~obj.App.OverlayClass.resultAvailable
+                indices = 1:size(obj.imageStack, 4);
+            else
+                indices = obj.App.OverlayClass.groups{str2double(obj.GroupDropdown.Value)};
+            end
+
+            dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
+            N = length(indices);
+            obj.MaskSlider.Limits = [1, N];
+            obj.MaskSlider.MajorTicks = 1:N;
+            obj.MaskSlider.MajorTickLabels = dates;
+            obj.MaskSlider.Value = 1;
         end
 
         function initializePresets(obj)
@@ -282,19 +442,19 @@ classdef DifferenceView3 < handle
             groupSelectionGrid = uigridlayout(imageLayout);
             groupSelectionGrid.Layout.Row = 1;
             groupSelectionGrid.RowHeight = {'fit'};
-            groupSelectionGrid.ColumnWidth = {'1x', 'fit'};
+            groupSelectionGrid.ColumnWidth = {'1x', '1x'};
             groupSelectionGrid.ColumnSpacing = 5;
 
             obj.GroupDropdown = uidropdown(groupSelectionGrid, ...
-                'Items', {'All'}, ...
-                'Value', 'All', ...
+                'Items', {''}, ...
+                'Value', '', ...
                 'Tooltip', 'Select image group');
             obj.GroupDropdown.Layout.Row = 1;
             obj.GroupDropdown.Layout.Column = 1;
 
             % Refresh button to re-trigger group selection
             obj.RefreshGroupButton = uibutton(groupSelectionGrid, 'push', ...
-                'Text', '↻', ...
+                'Text', 'Apply', ...
                 'Tooltip', 'Refresh/Re-apply current group selection', ...
                 'FontSize', 12);
             obj.RefreshGroupButton.Layout.Row = 1;
@@ -905,6 +1065,9 @@ classdef DifferenceView3 < handle
 
         function onGroupChanged(obj)
             % Handle group selection change (like DifferenceView)
+            if ~obj.dataAvailable
+                return
+            end
             if isempty(obj.App.OverlayClass.groups)
                 return
             end
@@ -1298,55 +1461,6 @@ classdef DifferenceView3 < handle
             obj.onCheckboxChanged();
         end
 
-        function update(obj)
-            % Update view if data is available (like DifferenceView)
-            if ~obj.dataAvailable
-                return;
-            end
-
-            % updated after overlay is calculated
-            if obj.App.OverlayClass.resultAvailable
-                obj.updateGroups(obj.App.OverlayClass.groups);
-            end
-
-            % Clear old checkboxes from UI and memory
-            delete(obj.CheckboxGrid.Children);
-            obj.Checkboxes = matlab.ui.control.CheckBox.empty;
-
-            imageArray = obj.App.OverlayClass.imageArray;
-            n = length(imageArray);
-
-            % One row per checkbox
-            obj.CheckboxGrid.RowHeight = repmat({'fit'}, 1, n);
-
-            % Default: nothing was calculated
-            calculatedIdxs = [];
-
-            if ~isempty(obj.App.OverlayClass.lastIndices)
-                calculatedIdxs = obj.App.OverlayClass.lastIndices;
-            end
-
-            for i = 1:n
-                dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
-                isChecked = ismember(i, calculatedIdxs);
-                cb = uicheckbox(obj.CheckboxGrid, ...
-                    'Text', dateStr, ...
-                    'Value', false, ...
-                    'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
-                % Set font color depending on previous use
-                if isChecked
-                    cb.FontColor = [0, 1, 0];  % green if used in last calculation
-                    cb.Enable = true;
-                else
-                    cb.FontColor = [1, 1, 1];  % White otherwise
-                    cb.Enable = false;
-                end
-                cb.Layout.Row = i;
-                obj.Checkboxes(i) = cb;
-            end
-            obj.updateSlider()
-        end
-
         function updateImageCheckboxes(obj)
             % Legacy method - now handled by update()
             obj.update();
@@ -1371,22 +1485,6 @@ classdef DifferenceView3 < handle
             end
         end
 
-        function updateUI(obj)
-            % Update UI based on current state
-            if isfield(obj.App, 'OverlayClass') && ~isempty(obj.App.OverlayClass.imageArray)
-                obj.updateImageCheckboxes();
-
-                % Update group dropdown (like DifferenceView)
-                if isfield(obj.App, 'OverlayClass') && ~isempty(obj.App.OverlayClass.groups)
-                    obj.updateGroups(obj.App.OverlayClass.groups);
-                end
-
-                obj.updateStatus('Ready - Select images and method, then click Calculate Changes');
-            else
-                obj.updateStatus('Load images first');
-            end
-        end
-
         function updateGroups(obj, groups)
             % Update groups dropdown (like DifferenceView)
             numGroups = numel(groups);
@@ -1397,70 +1495,6 @@ classdef DifferenceView3 < handle
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupChanged();
         end
 
-        % Interface methods for the main app
-        function onImLoad(obj)
-            % Called when new images are loaded - reset the view completely
-            obj.dataAvailable = true; % Set to true like DifferenceView
-            obj.currentMasks = [];
-            obj.currentResults = [];
-
-            % Clear visualizations
-            cla(obj.MainAxes);
-            cla(obj.AnalysisAxes);
-            cla(obj.StatsAxes);
-
-            title(obj.MainAxes, 'Change Detection Visualization');
-            title(obj.AnalysisAxes, 'Change Analysis');
-            title(obj.StatsAxes, 'Change Statistics');
-
-            % Reset mask navigation
-            obj.MaskSlider.Enable = 'off';
-            obj.MaskSlider.Limits = [1, 2];
-            obj.MaskSlider.Value = 1;
-            obj.MaskLabel.Text = 'Mask: 1 of 1';
-
-            % Reset parameters to defaults (logarithmic scale for areas)
-            obj.ThresholdSlider.Value = 20;    % 20% threshold (within [1, 100] range)
-            obj.BlockSizeSlider.Value = 3;     % 3 pixels block size (within [1, 100] range)
-            obj.AreaMinSlider.Value = 2;       % Log scale: 10^2 = 100 pixels
-            obj.AreaMaxSlider.Value = 4;       % Log scale: 10^4 = 10000 pixels
-
-            % Reset two-dimensional presets
-            obj.ScaleDropdown.Value = 'Custom';
-            obj.TemporalFilterDropdown.Value = 'none';
-            % Update area slider limits based on available images
-            % Get image dimensions from the overlay class
-            try
-                % Try to get image size from the first available image
-                imageArray = obj.App.OverlayClass.imageArray;
-                if ~isempty(imageArray)
-                    firstImage = imageArray{1}.data; % Assuming image data is in .data field
-                    if ~isempty(firstImage)
-                        obj.currentImageSize = [size(firstImage, 1), size(firstImage, 2)];
-                        obj.totalPixels = prod(obj.currentImageSize);
-                        obj.updateAreaSliderLimits();
-                    end
-                end
-            catch
-                % If we can't get image size, use defaults
-                obj.updateAreaSliderLimits();
-            end
-
-            obj.onCustomParameterChanged();
-
-            % Update UI with new data
-            obj.updateUI();
-        end
-
-        function show(obj)
-            obj.Grid.Visible = 'on';
-            obj.CalculateButton.Enable = 'on';
-            obj.update();
-        end
-
-        function hide(obj)
-            obj.Grid.Visible = 'off';
-        end
 
         function setVisible(obj, visible)
             obj.Grid.Visible = visible;
@@ -1640,20 +1674,6 @@ classdef DifferenceView3 < handle
             if obj.dataAvailable && strcmp(obj.VisualizationDropdown.Value, 'Individual')
                 obj.updateVisualization();
             end
-        end
-        function updateSlider(obj)
-            if ~obj.App.OverlayClass.resultAvailable
-                indices = 1:size(obj.imageStack, 4);
-            else
-                indices = obj.App.OverlayClass.groups{str2double(obj.GroupDropdown.Value)};
-            end
-
-            dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
-            N = length(indices);
-            obj.MaskSlider.Limits = [1, N];
-            obj.MaskSlider.MajorTicks = 1:N;
-            obj.MaskSlider.MajorTickLabels = dates;
-            obj.MaskSlider.Value = 1;
         end
     end
 
