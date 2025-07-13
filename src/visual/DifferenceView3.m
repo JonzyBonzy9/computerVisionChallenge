@@ -202,7 +202,7 @@ classdef DifferenceView3 < handle
             obj.EnvironmentPresets = struct();
 
             % Urban preset: optimized for built environments with geometric structures
-            obj.EnvironmentPresets.Urban = struct(...
+            obj.EnvironmentPresets.urban = struct(...
                 'algorithm', 'absdiff', ...             % Simple difference detection for buildings
                 'threshold', 20, ...                    % 20% threshold for clear changes
                 'blockSize', 1, ...                     % 1 pixel block size for fine detail
@@ -212,7 +212,7 @@ classdef DifferenceView3 < handle
                 'scale', 'medium');                     % Medium spatial scale
 
             % Natural preset: optimized for natural environments with organic changes
-            obj.EnvironmentPresets.Natural = struct(...
+            obj.EnvironmentPresets.natural = struct(...
                 'algorithm', 'texture_change', ...      % Texture-based for natural features
                 'threshold', 15, ...                    % 15% threshold (more sensitive for natural changes)
                 'blockSize', 5, ...                     % 5 pixel block size for organic textures
@@ -331,8 +331,8 @@ classdef DifferenceView3 < handle
             currentRow = currentRow + 1;
 
             obj.EnvironmentPresetDropdown = uidropdown(paramLayout, ...
-                'Items', {'Custom', 'Urban', 'Natural'}, ...
-                'Value', 'Custom', ...
+                'Items', differenceEstimationFunctions.valid_change_types, ...
+                'Value', 'fast', ...
                 'Tooltip', 'Select environment-optimized preset configuration');
             obj.EnvironmentPresetDropdown.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -343,8 +343,7 @@ classdef DifferenceView3 < handle
             currentRow = currentRow + 1;
 
             obj.AlgorithmTypeDropdown = uidropdown(paramLayout, ...
-                'Items', {'absdiff', 'gradient', 'ssim', 'dog', 'pca', 'temporal_analysis', 'texture_change', 'edge_evolution', ...
-                '--- Environment Optimized ---', 'urban_optimized', 'natural_optimized', 'mixed_optimized'}, ...
+                'Items', differenceEstimationFunctions.valid_methods, ...
                 'Value', 'absdiff', ...
                 'Tooltip', 'Select detection algorithm or environment-optimized preset');
             obj.AlgorithmTypeDropdown.Layout.Row = currentRow;
@@ -709,7 +708,7 @@ classdef DifferenceView3 < handle
             % Update parameter labels and reset dropdowns when manually adjusting
             if ~obj.isUpdatingPreset
                 % Manual adjustment - reset preset dropdowns to custom and update labels normally
-                obj.EnvironmentPresetDropdown.Value = 'Custom';
+                obj.EnvironmentPresetDropdown.Value = 'fast';
                 obj.ScaleDropdown.Value = 'Custom';
 
                 % Use appropriate labels for manual control
