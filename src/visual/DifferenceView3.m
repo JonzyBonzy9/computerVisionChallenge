@@ -983,235 +983,7 @@ classdef DifferenceView3 < handle
             end
         end
 
-        % function updateVisualization(obj)
-        %     % Update the main visualization based on current settings
-        %     if ~obj.dataAvailable || isempty(obj.currentMasks)
-        %         return;
-        %     end
-        %
-        %     try
-        %         visualizationType = obj.VisualizationDropdown.Value;
-        %         combinationType = obj.CombinationDropdown.Value;
-        %
-        %         % Update mask navigation based on visualization type
-        %         obj.updateMaskNavigationForVisualizationType(visualizationType);
-        %
-        %         % Display in main axes
-        %         obj.displayVisualization(obj.MainAxes, visualizationType, combinationType);
-        %
-        %         % Update analysis and stats tabs with different content
-        %         obj.updateAnalysisTab();
-        %         obj.updateStatsTab();
-        %
-        %     catch ME
-        %         obj.updateStatus(['Visualization error: ' ME.message]);
-        %     end
-        % end
-
-        function updateMaskNavigationForVisualizationType(obj, visualizationType)
-            % Enable/disable mask slider based on visualization type
-            switch visualizationType
-                case 'Individual'
-                    % Enable mask slider for individual mask navigation
-                    if ~isempty(obj.currentMasks)
-                        numMasks = length(obj.currentMasks);
-                        obj.MaskSlider.Enable = 'on';
-                        obj.MaskSlider.Limits = [1, numMasks];
-                        obj.MaskSlider.Value = max(1, min(obj.MaskSlider.Value, numMasks));
-                        obj.MaskSlider.MajorTicks = 1:min(numMasks, 10); % Limit ticks for readability
-                        obj.MaskLabel.Text = sprintf('Mask: %d of %d', round(obj.MaskSlider.Value), numMasks);
-                        obj.MaskLabel.Enable = 'on';
-                    end
-
-                case 'Combined'
-                    % Disable mask slider for combined visualizations, but show total count
-                    obj.MaskSlider.Enable = 'off';
-                    obj.MaskLabel.Enable = 'on';
-                    if ~isempty(obj.currentMasks)
-                        obj.MaskLabel.Text = sprintf('Combined: %d masks', length(obj.currentMasks));
-                    else
-                        obj.MaskLabel.Text = 'No masks available';
-                    end
-
-                otherwise
-                    obj.MaskSlider.Enable = 'off';
-                    obj.MaskLabel.Enable = 'off';
-                    obj.MaskLabel.Text = 'N/A';
-            end
-        end
-
-        function displayVisualization(obj, axes, visualizationType, combinationType)
-            % Display visualization data in the specified axes
-            cla(axes);
-
-            switch lower(visualizationType)
-                case 'individual'
-                    obj.displayIndividual(axes);
-
-                case 'combined'
-                    obj.displayCombined(axes, combinationType);
-
-                otherwise
-                    text(axes, 0.5, 0.5, 'Unknown visualization type', ...
-                        'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
-            end
-
-            % Ensure axes properties are set
-            axis(axes, 'image');
-            axes.XTick = [];
-            axes.YTick = [];
-        end
-
-        function displayIndividual(obj, axes)
-            % Display individual view with TimeSlider-style blending (exactly like TimeSliderOverlay)
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
-                return;
-            end
-
-            maskIdx = round(obj.MaskSlider.Value);
-            maskIdx = max(1, min(maskIdx, length(obj.currentMasks))); % Ensure valid index
-
-            % Create blended display using the same logic as TimeSliderOverlay
-            if ~isempty(obj.imageStack)
-                % We have image stack - use Gaussian blending
-                blendedImage = obj.blendImages(maskIdx);
-
-                % Display the blended result
-                imshow(blendedImage, 'Parent', axes);
-
-                % Build title based on what's being displayed
-                titleParts = {};
-                if obj.ImagesCheckbox.Value
-                    titleParts{end+1} = 'Images';
-                end
-                if obj.MasksCheckbox.Value
-                    titleParts{end+1} = 'Masks';
-                end
-
-                if isempty(titleParts)
-                    titleStr = sprintf('No Display Options Selected %d/%d', maskIdx, length(obj.currentMasks));
-                else
-                    titleStr = sprintf('Blended %s %d/%d (σ=%.1f)', strjoin(titleParts, '+'), maskIdx, length(obj.currentMasks), obj.sigma);
-                end
-
-            else
-                % No image stack - show just the current mask if masks checkbox is selected
-                if obj.MasksCheckbox.Value
-                    mask = obj.currentMasks{maskIdx};
-                    imagesc(axes, double(mask));
-                    colormap(axes, 'gray');
-                    titleStr = sprintf('Change Mask %d/%d', maskIdx, length(obj.currentMasks));
-                else
-                    % No images, no masks selected
-                    cla(axes);
-                    text(axes, 0.5, 0.5, 'Select Images and/or Masks to display', ...
-                        'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
-                    titleStr = 'No display options selected';
-                end
-            end
-
-            title(axes, titleStr);
-
-            % Update mask label
-            obj.MaskLabel.Text = sprintf('Mask: %d of %d', maskIdx, length(obj.currentMasks));
-
-            % Add statistics if masks are being displayed
-            if obj.MasksCheckbox.Value && maskIdx <= length(obj.currentMasks)
-                mask = obj.currentMasks{maskIdx};
-                changePixels = sum(mask(:));
-                maskTotalPixels = numel(mask);
-                changePercent = (changePixels / maskTotalPixels) * 100;
-                xlabel(axes, sprintf('Change: %d pixels (%.3f%%)', changePixels, changePercent));
-            end
-        end
-
-        function displayCombined(obj, axes, combinationType)
-            % Display combined view with different combination modes
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
-                return;
-            end
-
-            switch lower(combinationType)
-                case 'heatmap'
-                    obj.displayCombinedHeatmap(axes);
-
-                case 'temporal overlay'
-                    obj.displayTemporalOverlay(axes);
-
-                case 'sum'
-                    obj.displayCombinedSum(axes);
-
-                case 'average'
-                    obj.displayCombinedAverage(axes);
-
-                case 'max'
-                    obj.displayCombinedMax(axes);
-
-                otherwise
-                    text(axes, 0.5, 0.5, 'Unknown combination type', ...
-                        'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
-            end
-        end
-
-        % TimeSlider-style helper methods
-        function blendedImage = blendImages(obj, currentIdx)
-            % Blend images around current index using Gaussian weights (exactly like TimeSliderOverlay)
-            if isempty(obj.imageStack)
-                blendedImage = [];
-                return;
-            end
-
-            % Get dimensions
-            N = size(obj.imageStack, 4);
-
-            % Compute Gaussian weights centered at currentIdx (like TimeSliderOverlay)
-            x = 1:N;
-            weights = exp(-0.5 * ((x - currentIdx) / obj.sigma).^2);
-            weights = weights / sum(weights);  % Normalize
-
-            % Blend images
-            blendedImage = zeros(size(obj.imageStack,1), size(obj.imageStack,2), size(obj.imageStack,3), 'like', obj.imageStack);
-
-            % Add images if checkbox is selected
-            if obj.ImagesCheckbox.Value
-                for i = 1:N
-                    blendedImage = blendedImage + weights(i) * obj.imageStack(:,:,:,i);
-                end
-            end
-
-            % Add masks if checkbox is selected and mask stack is available
-            if obj.MasksCheckbox.Value && ~isempty(obj.maskStack)
-                for i = 1:N
-                    blendedImage = blendedImage + weights(i) * obj.maskStack(:,:,:,i);
-                end
-            end
-        end
-
-        function overlayMaskOnImage(obj, axes, image, mask)
-            % Overlay mask on image with transparency
-            imshow(image, 'Parent', axes);
-            hold(axes, 'on');
-
-            % Create colored overlay for change regions
-            overlayColor = [1, 0, 0]; % Red for changes
-            alpha = 0.3;
-
-            % Create RGB overlay
-            [h, w] = size(mask);
-            overlay = zeros(h, w, 3);
-            for c = 1:3
-                overlay(:,:,c) = overlayColor(c) * double(mask);
-            end
-
-            % Display overlay with transparency
-            overlayHandle = imagesc(axes, overlay);
-            set(overlayHandle, 'AlphaData', alpha * double(mask));
-
-            hold(axes, 'off');
-        end
-
+        %% combined display functions
         function displayCombinedHeatmap(obj, axes)
             % Display combined masks as heatmap
             combinedMask = zeros(size(obj.currentMasks{1}));
@@ -1219,7 +991,8 @@ classdef DifferenceView3 < handle
                 combinedMask = combinedMask + double(obj.currentMasks{i});
             end
 
-            imagesc(axes, combinedMask);
+            h = imagesc(axes, combinedMask);
+            set(h, 'AlphaData', combinedMask > 0);
             colormap(axes, 'hot');
             colorbar(axes);
             title(axes, 'Combined Change Heatmap');
@@ -1255,7 +1028,8 @@ classdef DifferenceView3 < handle
                 combinedMask = combinedMask + double(obj.currentMasks{i});
             end
 
-            imagesc(axes, combinedMask);
+            h = imagesc(axes, combinedMask);
+            set(h, 'AlphaData', combinedMask > 0);
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Sum)');
@@ -1270,7 +1044,8 @@ classdef DifferenceView3 < handle
             end
             combinedMask = combinedMask / length(obj.currentMasks);
 
-            imagesc(axes, combinedMask);
+            h = imagesc(axes, combinedMask);
+            set(h, 'AlphaData', combinedMask > 0);
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Average)');
@@ -1284,7 +1059,8 @@ classdef DifferenceView3 < handle
                 combinedMask = max(combinedMask, double(obj.currentMasks{i}));
             end
 
-            imagesc(axes, combinedMask);
+            h = imagesc(axes, combinedMask);
+            set(h, 'AlphaData', combinedMask > 0);
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Maximum)');
