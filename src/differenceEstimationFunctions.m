@@ -31,7 +31,7 @@ classdef differenceEstimationFunctions < handle
         % define value ranges etc
         valid_methods = {'absdiff','gradient','ssim','dog','pca','temporal_analysis','texture_change','edge_evolution'};
         valid_change_types = {'fast', 'slow', 'periodic', 'large_scale', 'medium_scale', 'small_scale', 'urban', 'natural', 'mixed'};
-        valid_visualization_types = {'heatmap', 'overlay', 'difference_evolution', 'change_magnitude', 'temporal_profile', 'change_timeline'};
+        valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
         value_range_threshold = [0, 1];
         value_range_blockSize = [1, 30];
         value_range_areaMin = [1, 150];
