@@ -289,8 +289,8 @@ classdef OverlayView < handle
             obj.updateGroups(obj.App.OverlayClass.groups);
             
             % --- Update exterior button, now differences can be calculated
-            obj.App.CalculateDifferencesButton.Text = "Calculate Differences";
-            obj.App.CalculateDifferencesButton.Enable = 'on';   
+            %obj.App.CalculateDifferencesButton.Text = "Calculate Differences";
+            %obj.App.CalculateDifferencesButton.Enable = 'on';   
         end
     end    
 
