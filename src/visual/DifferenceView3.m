@@ -558,7 +558,7 @@ classdef DifferenceView3 < handle
             obj.ThresholdLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.ThresholdSlider = uislider(paramLayout, 'Limits', [1, 100], 'Value', 20, ...
+            obj.ThresholdSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_threshold, 'Value', 20, ...
                 'Tooltip', 'Detection threshold as percentage (1-100%)');
             obj.ThresholdSlider.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -568,7 +568,7 @@ classdef DifferenceView3 < handle
             obj.BlockSizeLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.BlockSizeSlider = uislider(paramLayout, 'Limits', [1, 100], 'Value', 3, ...
+            obj.BlockSizeSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_blockSize, 'Value', 3, ...
                 'Tooltip', 'Block size in pixels (1-100)');
             obj.BlockSizeSlider.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -578,7 +578,7 @@ classdef DifferenceView3 < handle
             obj.AreaMinLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.AreaMinSlider = uislider(paramLayout, 'Limits', [0, 4], 'Value', 2, ...
+            obj.AreaMinSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', 2, ...
                 'Tooltip', 'Minimum change area (logarithmic scale: 1 pixel to 10% of image)');
             obj.AreaMinSlider.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -588,7 +588,7 @@ classdef DifferenceView3 < handle
             obj.AreaMaxLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.AreaMaxSlider = uislider(paramLayout, 'Limits', [1, 6], 'Value', 4, ...
+            obj.AreaMaxSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', 4, ...
                 'Tooltip', 'Maximum change area (logarithmic scale: 10 pixels to 50% of image)');
             obj.AreaMaxSlider.Layout.Row = currentRow;
             currentRow = currentRow + 1;
