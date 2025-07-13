@@ -118,11 +118,16 @@ classdef calcOverlay < handle
             group = 1;
             % check whether overlay was already calculated
             if ~obj.resultAvailable
-                for i = 1:length(indices)
+                % Initialize overlay with first image
+                overlay = im2double(obj.imageArray{indices(1)}.data);
+                % Add remaining images
+                for i = 2:length(indices)
                     idx = indices(i);
-                    overlay = obj.imageArray{idx}.data;
-                    overlay = overlay ./ length(indices);
+                    overlay = overlay + im2double(obj.imageArray{idx}.data);
                 end
+                % Average all accumulated images
+                overlay = overlay ./ length(indices);
+                overlay = im2uint8(overlay);
                 return
             end
             validSelection = intersect(indices, obj.lastIndices);
@@ -287,7 +292,6 @@ classdef calcOverlay < handle
 
             % Get dimensions from first image
             [H, W, C] = size(obj.warpedImages{1});
-            N = length(obj.warpedImages);
 
             numGroups = numel(obj.groups);
             obj.imageStack = cell(1, numGroups);
