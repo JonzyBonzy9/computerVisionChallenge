@@ -950,29 +950,63 @@ classdef DifferenceView3 < handle
         end
 
         function updateVisualization(obj)
-            % Update the main visualization based on current settings
-            if ~obj.dataAvailable || isempty(obj.currentMasks)
-                return;
-            end
+            cla(obj.MainAxes)
+            visualizationType = obj.VisualizationDropdown.Value;
+            switch visualizationType
+                case 'Individual'
+                case 'Combined'
+                    if obj.ImagesCheckbox.Value
+                        overlay = obj.App.OverlayClass.createOverlay(obj.App.OverlayClass.lastIndices);
+                        imshow(overlay, 'Parent', obj.MainAxes);
+                    end
+                    if obj.MasksCheckbox.Value
+                        combinationType = obj.CombinationDropdown.Value;
+                        hold(obj.MainAxes, 'on')
+                        switch lower(combinationType)
+                            case 'heatmap'
+                                obj.displayCombinedHeatmap(obj.MainAxes);
 
-            try
-                visualizationType = obj.VisualizationDropdown.Value;
-                combinationType = obj.CombinationDropdown.Value;
+                            case 'temporal overlay'
+                                obj.displayTemporalOverlay(obj.MainAxes);
 
-                % Update mask navigation based on visualization type
-                obj.updateMaskNavigationForVisualizationType(visualizationType);
+                            case 'sum'
+                                obj.displayCombinedSum(obj.MainAxes);
 
-                % Display in main axes
-                obj.displayVisualization(obj.MainAxes, visualizationType, combinationType);
+                            case 'average'
+                                obj.displayCombinedAverage(obj.MainAxes);
 
-                % Update analysis and stats tabs with different content
-                obj.updateAnalysisTab();
-                obj.updateStatsTab();
-
-            catch ME
-                obj.updateStatus(['Visualization error: ' ME.message]);
+                            case 'max'
+                                obj.displayCombinedMax(obj.MainAxes);
+                        end
+                        hold(obj.MainAxes, 'off')
+                    end
             end
         end
+
+        % function updateVisualization(obj)
+        %     % Update the main visualization based on current settings
+        %     if ~obj.dataAvailable || isempty(obj.currentMasks)
+        %         return;
+        %     end
+        %
+        %     try
+        %         visualizationType = obj.VisualizationDropdown.Value;
+        %         combinationType = obj.CombinationDropdown.Value;
+        %
+        %         % Update mask navigation based on visualization type
+        %         obj.updateMaskNavigationForVisualizationType(visualizationType);
+        %
+        %         % Display in main axes
+        %         obj.displayVisualization(obj.MainAxes, visualizationType, combinationType);
+        %
+        %         % Update analysis and stats tabs with different content
+        %         obj.updateAnalysisTab();
+        %         obj.updateStatsTab();
+        %
+        %     catch ME
+        %         obj.updateStatus(['Visualization error: ' ME.message]);
+        %     end
+        % end
 
         function updateMaskNavigationForVisualizationType(obj, visualizationType)
             % Enable/disable mask slider based on visualization type
@@ -1099,15 +1133,6 @@ classdef DifferenceView3 < handle
                 return;
             end
 
-            % Check what should be displayed based on checkboxes
-            if ~obj.ImagesCheckbox.Value && ~obj.MasksCheckbox.Value
-                cla(axes);
-                text(axes, 0.5, 0.5, 'Select Images and/or Masks to display', ...
-                    'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
-                title(axes, 'No display options selected');
-                return;
-            end
-
             switch lower(combinationType)
                 case 'heatmap'
                     obj.displayCombinedHeatmap(axes);
@@ -1205,32 +1230,20 @@ classdef DifferenceView3 < handle
         end
 
         function displayTemporalOverlay(obj, axes)
-            % Display temporal overlay of all masks
-            if obj.ImagesCheckbox.Value && ~isempty(obj.imageStack)
-                % Use first image as base
-                baseImage = obj.imageStack(:,:,:,1);
-                imshow(baseImage, 'Parent', axes);
-                hold(axes, 'on');
-
-                % Overlay all masks with different colors
-                colors = lines(length(obj.currentMasks));
-                for i = 1:length(obj.currentMasks)
-                    mask = obj.currentMasks{i};
-                    if sum(mask(:)) > 0
-                        % Create colored overlay
-                        [h, w] = size(mask);
-                        overlay = zeros(h, w, 3);
-                        for c = 1:3
-                            overlay(:,:,c) = colors(i,c) * double(mask);
-                        end
-                        overlayHandle = imagesc(axes, overlay);
-                        set(overlayHandle, 'AlphaData', 0.2 * double(mask));
+            % Overlay all masks with different colors
+            colors = lines(length(obj.currentMasks));
+            for i = 1:length(obj.currentMasks)
+                mask = obj.currentMasks{i};
+                if sum(mask(:)) > 0
+                    % Create colored overlay
+                    [h, w] = size(mask);
+                    overlay = zeros(h, w, 3);
+                    for c = 1:3
+                        overlay(:,:,c) = colors(i,c) * double(mask);
                     end
+                    overlayHandle = imagesc(axes, overlay);
+                    set(overlayHandle, 'AlphaData', 0.2 * double(mask));
                 end
-                hold(axes, 'off');
-            else
-                % Show just the masks
-                obj.displayCombinedHeatmap(axes);
             end
             title(axes, 'Temporal Change Overlay');
         end
