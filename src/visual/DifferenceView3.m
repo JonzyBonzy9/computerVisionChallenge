@@ -118,9 +118,9 @@ classdef DifferenceView3 < handle
             obj.currentResults = [];
 
             % Clear visualizations
-            cla(obj.MainAxes);
-            cla(obj.AnalysisAxes);
-            cla(obj.StatsAxes);
+            obj.clearAxes(obj.MainAxes);
+            obj.clearAxes(obj.AnalysisAxes);
+            obj.clearAxes(obj.StatsAxes);
 
             title(obj.MainAxes, 'Change Detection Visualization');
             title(obj.AnalysisAxes, 'Change Analysis');
@@ -649,7 +649,7 @@ classdef DifferenceView3 < handle
             obj.individualPanel = obj.createSection(visualLayout, 'Individual Mode Controls', currentRow + 2);
             obj.individualPanel.Visible = 'off';  % Initially hidden
             individualGrid = uigridlayout(obj.individualPanel);
-            individualGrid.RowHeight = {'fit', 'fit', 'fit', 60, 'fit'};
+            individualGrid.RowHeight = {'fit', 'fit', 'fit', 90, 'fit'};
             individualGrid.ColumnWidth = {'1x'};
             obj.combinedPanel = obj.createSection(visualLayout, 'Combined Mode Controls', currentRow + 2);
             obj.combinedPanel.Visible = 'on';
@@ -1052,9 +1052,9 @@ classdef DifferenceView3 < handle
             obj.currentResults = [];
 
             % Clear visualizations
-            cla(obj.MainAxes);
-            cla(obj.AnalysisAxes);
-            cla(obj.StatsAxes);
+            obj.clearAxes(obj.MainAxes);
+            obj.clearAxes(obj.AnalysisAxes);
+            obj.clearAxes(obj.StatsAxes);
 
             title(obj.MainAxes, 'Change Detection Visualization');
             title(obj.AnalysisAxes, 'Change Analysis');
@@ -1101,7 +1101,7 @@ classdef DifferenceView3 < handle
         end
 
         function updateVisualization(obj)
-            cla(obj.MainAxes)
+            obj.clearAxes(obj.MainAxes);
             visualizationType = obj.VisualizationDropdown.Value;
             switch visualizationType
                 case 'Individual'
@@ -1135,90 +1135,162 @@ classdef DifferenceView3 < handle
                         hold(obj.MainAxes, 'off')
                     end
             end
+            
+            % Update Analysis and Statistics tabs when data is available
+            if obj.dataAvailable
+                obj.updateAnalysisTab();
+                obj.updateStatsTab();
+            end
         end
 
         %% combined display functions
         function displayCombinedHeatmap(obj, axes)
-            % Display combined masks as heatmap
-            combinedMask = zeros(size(obj.currentMasks{1}));
-            for i = 1:length(obj.currentMasks)
-                combinedMask = combinedMask + double(obj.currentMasks{i});
+            % Display combined masks as heatmap using faster maskStack interface
+
+            % Check if maskStack is available
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
+                return;
             end
+
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+
+            % Create combined mask by summing all masks in the stack
+            combinedMask = sum(double(obj.App.DifferenceClass.maskStack), 4);
+            combinedMask = combinedMask / numMasks;  % Normalize by number of masks
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
+
+            % Explicitly set the color limits to match your normalized data (0 to 1)
+            clim(axes, [0, 1]);
+
             colormap(axes, 'hot');
-            colorbar(axes);
+            cb = colorbar(axes);
+            cb.Label.String = 'Normalized Differences';
             title(axes, 'Combined Change Heatmap');
 
             % Statistics
             totalChanges = sum(combinedMask(:));
-            xlabel(axes, sprintf('Total changes: %.0f', totalChanges));
+            xlabel(axes, sprintf('Total changes: %.0f pixels across %d masks', totalChanges, numMasks));
         end
 
         function displayTemporalOverlay(obj, axes)
-            % Overlay all masks with different colors
-            colors = lines(length(obj.currentMasks));
-            for i = 1:length(obj.currentMasks)
-                mask = obj.currentMasks{i};
-                if sum(mask(:)) > 0
-                    % Create colored overlay
-                    [h, w] = size(mask);
-                    overlay = zeros(h, w, 3);
-                    for c = 1:3
-                        overlay(:,:,c) = colors(i,c) * double(mask);
-                    end
-                    overlayHandle = imagesc(axes, overlay);
-                    set(overlayHandle, 'AlphaData', 0.2 * double(mask));
-                end
+            % Efficient temporal overlay using vectorized operations with colormap
+
+            % Check if maskStack is available
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
+                return;
             end
+
+            % Get mask dimensions and count
+            [h, w, ~, numMasks] = size(obj.App.DifferenceClass.maskStack);
+
+            % Create indexed overlay where each mask gets a unique index
+            indexedOverlay = zeros(h, w);
+            combinedAlpha = zeros(h, w);
+
+            % Process all masks and assign indices
+            for i = 1:numMasks
+                % Get current mask and convert to double
+                currentMask = double(obj.App.DifferenceClass.maskStack(:,:,:,i));
+                maskBinary = currentMask(:,:,1) > 0;
+
+                % Assign mask index to pixels (later masks overwrite earlier ones)
+                indexedOverlay(maskBinary) = i;
+
+                % Accumulate alpha channel
+                combinedAlpha = max(combinedAlpha, currentMask(:,:,1));
+            end
+
+            % Display indexed result with colormap
+            if any(combinedAlpha(:) > 0)
+                % Create colormap with distinct colors for each time period
+                cmap = lines(numMasks);
+                colormap(axes, cmap);
+
+                overlayHandle = imagesc(axes, indexedOverlay, [1, numMasks]);
+                set(overlayHandle, 'AlphaData', 0.35 * combinedAlpha);
+
+                % Create custom colorbar with date labels
+                obj.createTemporalColorbar(axes, numMasks);
+            end
+
             title(axes, 'Temporal Change Overlay');
         end
 
         function displayCombinedSum(obj, axes)
-            % Display sum of all masks
-            combinedMask = zeros(size(obj.currentMasks{1}));
-            for i = 1:length(obj.currentMasks)
-                combinedMask = combinedMask + double(obj.currentMasks{i});
+            % Display sum of all masks using maskStack interface
+
+            % Check if maskStack is available
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
+                return;
             end
+
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+
+            % Create combined mask by summing all masks in the stack
+            combinedMask = sum(double(obj.App.DifferenceClass.maskStack), 4);
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
+            clim(axes, [0, max(combinedMask(:))]);  % Set color limits to max value
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Sum)');
-            xlabel(axes, sprintf('Total: %.0f changes', sum(combinedMask(:))));
+            xlabel(axes, sprintf('Total: %.0f changes across %d masks', sum(combinedMask(:)), numMasks));
         end
 
         function displayCombinedAverage(obj, axes)
-            % Display average of all masks
-            combinedMask = zeros(size(obj.currentMasks{1}));
-            for i = 1:length(obj.currentMasks)
-                combinedMask = combinedMask + double(obj.currentMasks{i});
+            % Display average of all masks using maskStack interface
+
+            % Check if maskStack is available
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
+                return;
             end
-            combinedMask = combinedMask / length(obj.currentMasks);
+
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+
+            % Create combined mask by averaging all masks in the stack
+            combinedMask = sum(double(obj.App.DifferenceClass.maskStack), 4) / numMasks;
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
+            clim(axes, [0, max(combinedMask(:))]);
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Average)');
-            xlabel(axes, sprintf('Average: %.2f changes/frame', mean(combinedMask(:))));
+            xlabel(axes, sprintf('Average: %.2f changes/mask across %d masks', mean(combinedMask(:)), numMasks));
         end
 
         function displayCombinedMax(obj, axes)
-            % Display maximum of all masks
-            combinedMask = zeros(size(obj.currentMasks{1}));
-            for i = 1:length(obj.currentMasks)
-                combinedMask = max(combinedMask, double(obj.currentMasks{i}));
+            % Display maximum of all masks using maskStack interface
+
+            % Check if maskStack is available
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
+                return;
             end
+
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+
+            % Create combined mask by taking maximum across all masks in the stack
+            combinedMask = max(double(obj.App.DifferenceClass.maskStack), [], 4);
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
+            clim(axes, [0, max(combinedMask(:))]);
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Maximum)');
-            xlabel(axes, sprintf('Max overlap: %d regions', sum(combinedMask(:) > 0)));
+            xlabel(axes, sprintf('Max overlap: %d regions across %d masks', sum(combinedMask(:) > 0), numMasks));
         end
 
         function blendImages(obj, axes, group)
@@ -1282,16 +1354,20 @@ classdef DifferenceView3 < handle
         end
 
         function displayDifferenceEvolution(obj, axes)
-            % Display how changes evolve over time
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
+            % Display how changes evolve over time using maskStack interface
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
                 return;
             end
 
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+
             % Calculate change magnitude for each mask
-            changeMagnitudes = zeros(1, length(obj.currentMasks));
-            for i = 1:length(obj.currentMasks)
-                changeMagnitudes(i) = sum(obj.currentMasks{i}(:));
+            changeMagnitudes = zeros(1, numMasks);
+            for i = 1:numMasks
+                maskData = obj.App.DifferenceClass.maskStack(:,:,:,i);
+                changeMagnitudes(i) = sum(maskData(:));
             end
 
             plot(axes, 1:length(changeMagnitudes), changeMagnitudes, 'o-', 'LineWidth', 2, 'MarkerSize', 6);
@@ -1313,18 +1389,25 @@ classdef DifferenceView3 < handle
         end
 
         function displayChangeMagnitude(obj, axes)
-            % Display change magnitude as bar chart
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
+            % Display change magnitude as bar chart using maskStack interface
+            if isempty(obj.App.DifferenceClass.maskStack)
+                title(axes, 'No mask data available');
                 return;
             end
 
-            changeMagnitudes = zeros(1, length(obj.currentMasks));
-            changePercentages = zeros(1, length(obj.currentMasks));
-            maskTotalPixels = numel(obj.currentMasks{1});
+            % Get number of masks from maskStack
+            numMasks = size(obj.App.DifferenceClass.maskStack, 4);
+            
+            changeMagnitudes = zeros(1, numMasks);
+            changePercentages = zeros(1, numMasks);
+            
+            % Get mask dimensions for percentage calculation
+            [h, w] = size(obj.App.DifferenceClass.maskStack, [1, 2]);
+            maskTotalPixels = h * w;
 
-            for i = 1:length(obj.currentMasks)
-                changeMagnitudes(i) = sum(obj.currentMasks{i}(:));
+            for i = 1:numMasks
+                maskData = obj.App.DifferenceClass.maskStack(:,:,:,i);
+                changeMagnitudes(i) = sum(maskData(:));
                 changePercentages(i) = (changeMagnitudes(i) / maskTotalPixels) * 100;
             end
 
@@ -1426,7 +1509,7 @@ classdef DifferenceView3 < handle
 
         function updateStatsTab(obj)
             % Update the statistics tab with quantitative analysis
-            if ~obj.dataAvailable || isempty(obj.currentMasks)
+            if ~obj.dataAvailable || isempty(obj.App.DifferenceClass.maskStack)
                 return;
             end
 
@@ -1504,7 +1587,7 @@ classdef DifferenceView3 < handle
 
         function updateData(obj)
             % Called when new data is loaded
-            obj.updateUI();
+            obj.update();
         end
 
         function getCurrentPresetDescription(obj)
@@ -1676,6 +1759,50 @@ classdef DifferenceView3 < handle
             if obj.dataAvailable && strcmp(obj.VisualizationDropdown.Value, 'Individual')
                 obj.updateVisualization();
             end
+        end
+        function createTemporalColorbar(obj, axes, numMasks)
+            % Create a colorbar with custom date ticks for temporal overlay
+            % Get date information for the masks
+            if isempty(obj.App.DifferenceClass.lastIndices) || numMasks == 0
+                return;
+            end
+
+            % Get the image array and corresponding dates
+            imageArray = obj.App.OverlayClass.imageArray;
+            maskIndices = obj.App.DifferenceClass.lastIndices;
+
+            % Extract dates for each mask
+            dates = cell(numMasks+1, 1);
+            for i = 1:numMasks+1
+                if i <= length(maskIndices) && maskIndices(i) <= length(imageArray)
+                    dates{i} = datestr(imageArray{maskIndices(i)}.id, 'mmm yyyy');
+                else
+                    dates{i} = sprintf('Mask %d', i);
+                end
+            end
+
+            % Create colorbar
+            cb = colorbar(axes);
+
+            % Set custom ticks and labels
+            cb.Ticks = linspace(1, numMasks, numMasks+1);
+            cb.TickLabels = dates;
+            cb.Label.String = 'Time Periods';
+            cb.Label.Color = 'white';
+            cb.Label.FontWeight = 'bold';
+
+            % Style the colorbar
+            cb.Color = 'white';
+            cb.FontSize = 8;
+            cb.Location = 'eastoutside';
+        end
+        function clearAxes(~, axes)
+            cb = findall(axes, 'Type', 'ColorBar');
+            disp(cb)
+            delete(cb);
+
+            % Now clear the axes as usual
+            cla(axes);
         end
     end
 
