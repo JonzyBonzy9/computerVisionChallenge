@@ -171,6 +171,8 @@ classdef DifferenceView3 < handle
                 return;
             end
 
+            disp("update")
+
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
                 obj.CalculateButton.Enable = 'on';
@@ -186,6 +188,7 @@ classdef DifferenceView3 < handle
 
             % dependent on whether difference data is available
             if obj.App.DifferenceClass.resultAvailable
+                disp("MaskCheck")
                 obj.MasksCheckbox.Enable = 'on';
                 obj.MasksCheckbox.Value = true;  % Enable and check by default
             else
@@ -195,6 +198,7 @@ classdef DifferenceView3 < handle
 
             obj.updateCheckboxes();  % Update checkboxes based on current state
             obj.updateSlider();
+            obj.updateVisualization();
         end
 
         function updateCheckboxes(obj)
@@ -215,8 +219,7 @@ classdef DifferenceView3 < handle
                     isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
                     cb = uicheckbox(obj.CheckboxGrid, ...
                         'Text', dateStr, ...
-                        'Value', isChecked, ...
-                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                        'Value', isChecked);
                     % Set font color depending on previous use
                     if isChecked
                         cb.FontColor = [0, 1, 0];  % green if used in last calculation
@@ -233,8 +236,7 @@ classdef DifferenceView3 < handle
                     isAvailable = ismember(i, obj.App.OverlayClass.lastIndices);
                     cb = uicheckbox(obj.CheckboxGrid, ...
                         'Text', dateStr, ...
-                        'Value', isAvailable, ...
-                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                        'Value', isAvailable);
                     cb.FontColor = [1, 1, 1];  % White
                     cb.Layout.Row = i;
                     cb.Enable = isAvailable;  % Enable only if available in overlay
@@ -245,8 +247,7 @@ classdef DifferenceView3 < handle
                     dateStr = datestr(imageArray{i}.id, 'yyyy_mm');
                     cb = uicheckbox(obj.CheckboxGrid, ...
                         'Text', dateStr, ...
-                        'Value', false, ...
-                        'ValueChangedFcn', @(src, evt) obj.onCheckboxChanged(i));
+                        'Value', false);
                     cb.FontColor = [1, 1, 1];  % White
                     cb.Layout.Row = i;
                     cb.Enable = false;  % Disable if no results available
@@ -1034,6 +1035,7 @@ classdef DifferenceView3 < handle
                     obj.updateStatus('No changes detected with current parameters');
                 end
                 obj.CalculateButton.Enable = 'on';
+                obj.update();
             catch exception
                 obj.updateStatus(['Calculation error: ' exception.message]);
                 obj.currentMasks = {};
@@ -1063,22 +1065,6 @@ classdef DifferenceView3 < handle
 
         % Note: onToggleImageSelection removed - using tabbed interface now
 
-        function onCheckboxChanged(obj, ~)
-            % Handle checkbox selection changes (like DifferenceView)
-            % Get current checkbox states
-            selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
-
-            % Keep only those that were used in last calculation
-            validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
-
-            overlay = obj.App.OverlayClass.createOverlay(validSelection);
-            if ~isempty(overlay)
-                imshow(overlay, 'Parent', obj.MainAxes);
-            else
-                cla(obj.MainAxes);  % Clear if overlay couldn't be created
-            end
-        end
-
         function onGroupChanged(obj)
             % Handle group selection change (like DifferenceView)
             if ~obj.dataAvailable
@@ -1096,11 +1082,9 @@ classdef DifferenceView3 < handle
                 if ismember(k, groupIndices)
                     obj.Checkboxes(k).Value = true;
                     obj.Checkboxes(k).Enable = 'on';
-                    obj.onCheckboxChanged();
                 else
                     obj.Checkboxes(k).Value = false;
                     obj.Checkboxes(k).Enable = 'off';
-                    obj.onCheckboxChanged();
                 end
             end
             obj.updateSlider();
@@ -1477,7 +1461,6 @@ classdef DifferenceView3 < handle
                     obj.Checkboxes(i).Value = false;
                 end
             end
-            obj.onCheckboxChanged();
         end
 
         function updateImageCheckboxes(obj)
