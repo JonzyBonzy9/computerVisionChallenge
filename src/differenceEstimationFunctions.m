@@ -546,108 +546,6 @@ classdef differenceEstimationFunctions < handle
 
     %% ===== Extended Methods for Three-Dimensional Preset Calculation =====
     methods (Access = public)
-        function differenceMasks = calculateWithPresets(obj, indices, tempo, scale, type)
-            % Calculate difference masks using three-dimensional preset system
-            % Arguments:
-            %   indices - image indices to process
-            %   tempo - temporal dimension: 'fast', 'medium', 'slow'
-            %   scale - spatial dimension: 'small', 'medium', 'large'
-            %   type - environment type: 'urban', 'natural', 'mixed'
-
-            obj.lastIndices = indices;
-
-            % Get filtered images and masks
-            isInSelection = ismember(obj.overlay.lastIndices, indices);
-            filteredImages = obj.overlay.warpedImages(isInSelection);
-            filteredMasks = obj.overlay.warpedMasks(isInSelection);
-
-            % === STEP 1: Apply Spatial Scale Dimension ===
-            [selectedBlockSize, selectedAreaMin, selectedAreaMax] = obj.determineScaleParameters(scale, filteredImages{1});
-            obj.blockSize = selectedBlockSize;
-            obj.areaMin = selectedAreaMin;
-            obj.areaMax = selectedAreaMax;
-
-            % === STEP 2: Determine Detection Method(s) based on Type ===
-            [detectionMethods, methodWeights, baseThreshold] = obj.determineTypeParameters(type, filteredImages);
-
-            % === STEP 3: Calculate initial masks for all image pairs ===
-            rawMasks = cell(1, length(filteredImages)-1);
-            combinedMasks = cell(1, length(filteredImages)-1);
-
-            for i = 1:length(filteredImages)-1
-                I1 = filteredImages{i};
-                I2 = filteredImages{i+1};
-
-                % Preprocess images with determined block size
-                [I1_proc, I2_proc] = differenceEstimationFunctions.preprocessImages(I1, I2, obj.blockSize);
-
-                % Calculate adaptive threshold for this image pair
-                adaptiveThreshold = obj.calculateAdaptiveThreshold(I1_proc, I2_proc, baseThreshold, tempo);
-                obj.threshold = adaptiveThreshold; % Store for reference
-
-                % Apply multiple detection methods if specified
-                pairMasks = cell(1, length(detectionMethods));
-                for methodIdx = 1:length(detectionMethods)
-                    currentMethod = detectionMethods{methodIdx};
-                    weight = methodWeights(methodIdx);
-
-                    % Calculate mask for this method
-                    switch lower(currentMethod)
-                        case 'absdiff'
-                            mask = differenceEstimationFunctions.detectChange_absdiff(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'gradient'
-                            mask = differenceEstimationFunctions.detectChange_gradient(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'ssim'
-                            mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'dog'
-                            mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'pca'
-                            mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'temporal_analysis'
-                            mask = differenceEstimationFunctions.detectChange_temporal(filteredImages, i, adaptiveThreshold, true);
-                        case 'texture_change'
-                            mask = differenceEstimationFunctions.detectChange_texture(I1_proc, I2_proc, adaptiveThreshold, true);
-                        case 'edge_evolution'
-                            mask = differenceEstimationFunctions.detectChange_edge(I1_proc, I2_proc, adaptiveThreshold, true);
-                        otherwise
-                            error('Unknown method "%s"', currentMethod);
-                    end
-
-                    % Resize mask to match original image size
-                    mask = imresize(mask, size(filteredMasks{i}), 'nearest');
-                    pairMasks{methodIdx} = double(mask) * weight;
-                end
-
-                % Combine multiple methods if used
-                if length(pairMasks) == 1
-                    combinedMask = pairMasks{1} > 0.5;
-                else
-                    % Weighted combination of methods
-                    weightedSum = zeros(size(pairMasks{1}));
-                    for methodIdx = 1:length(pairMasks)
-                        weightedSum = weightedSum + pairMasks{methodIdx};
-                    end
-                    combinedMask = weightedSum > (sum(methodWeights) * 0.5);
-                end
-
-                % Apply intersection with valid regions
-                combinedMask = combinedMask & filteredMasks{i} & filteredMasks{i+1};
-
-                rawMasks{i} = combinedMask;
-            end
-
-            % === STEP 4: Apply Area Filtering based on Scale ===
-            for i = 1:length(rawMasks)
-                combinedMasks{i} = differenceEstimationFunctions.postprocessMask(rawMasks{i}, selectedAreaMin, selectedAreaMax);
-            end
-
-            % === STEP 5: Apply Temporal Dimension Filtering ===
-            obj.differenceMasks = obj.applyTemporalFiltering(combinedMasks, tempo, indices);
-
-            differenceMasks = obj.differenceMasks;
-            obj.resultAvailable = true;
-        end
-
         function differenceMasks = calculateAdvanced(obj, indices, tempo, type, threshold, blockSize, areaMin, areaMax)
             % Calculate difference masks using three-dimensional preset system
             % Arguments:
@@ -670,7 +568,7 @@ classdef differenceEstimationFunctions < handle
             obj.threshold = threshold;
 
             % === STEP 2: Determine Detection Method(s) based on Type ===
-            [detectionMethods, methodWeights, ~] = obj.determineTypeParameters(type, filteredImages);
+            [detectionMethods, methodWeights] = obj.determineTypeParameters(type, filteredImages);
 
             % === STEP 3: Calculate initial masks for all image pairs ===
             rawMasks = cell(1, length(filteredImages)-1);
@@ -750,42 +648,7 @@ classdef differenceEstimationFunctions < handle
             obj.resultAvailable = true;
         end
 
-
-        function [blockSize, areaMin, areaMax] = determineScaleParameters(obj, scale, referenceImage)
-            % Determine spatial scale parameters based on image size and scale dimension
-            [imgHeight, imgWidth] = size(referenceImage, [1, 2]);
-            totalPixels = imgHeight * imgWidth;
-
-            switch lower(scale)
-                case 'small'
-                    % Fine details - small blocks (1 pixel), small areas
-                    blockSize = 1;  % 1 pixel block size
-                    areaMin = max(1, round(totalPixels * 0.0001)); % 0.01% of image
-                    areaMax = max(areaMin * 10, round(totalPixels * 0.01)); % 1.0% of image
-
-                case 'medium'
-                    % Balanced - medium blocks (3 pixels), medium areas
-                    blockSize = 3;  % 3 pixel block size
-                    areaMin = max(5, round(totalPixels * 0.001)); % 0.1% of image
-                    areaMax = max(areaMin * 20, round(totalPixels * 0.05)); % 5.0% of image
-
-                case 'large'
-                    % Large structures - bigger blocks (10 pixels), large areas
-                    blockSize = 10; % 10 pixel block size
-                    areaMin = max(20, round(totalPixels * 0.005)); % 0.5% of image
-                    areaMax = max(areaMin * 50, round(totalPixels * 0.15)); % 15.0% of image
-
-                otherwise
-                    error('Unknown scale dimension: %s. Must be small, medium, or large.', scale);
-            end
-
-            % Ensure reasonable bounds (block size is now fixed by preset)
-            blockSize = max(1, min(blockSize, 100)); % Allow up to 100 pixels
-            areaMin = max(1, areaMin);
-            areaMax = max(areaMin + 10, min(areaMax, totalPixels));
-        end
-
-        function [methods, methodWeights, baseThreshold] = determineTypeParameters(obj, type, filteredImages)
+        function [methods, methodWeights] = determineTypeParameters(obj, type, filteredImages)
             % Determine detection methods and parameters based on environment type
 
             switch lower(type)
@@ -793,25 +656,21 @@ classdef differenceEstimationFunctions < handle
                     % Urban environments: emphasize geometric structures and edges
                     methods = {'gradient', 'edge_evolution'};
                     methodWeights = [0.7, 0.3]; % Primary: gradient, Secondary: edge evolution
-                    baseThreshold = 0.12; % Moderately sensitive for geometric changes
 
                 case 'natural'
                     % Natural environments: emphasize texture and smooth changes
                     methods = {'texture_change', 'absdiff'};
                     methodWeights = [0.6, 0.4]; % Primary: texture, Secondary: basic difference
-                    baseThreshold = 0.18; % Less sensitive to reduce texture noise
 
                 case 'mixed'
                     % Mixed environments: balanced approach with multiple methods
                     methods = {'absdiff', 'gradient', 'ssim'};
                     methodWeights = [0.4, 0.3, 0.3]; % Balanced combination
-                    baseThreshold = 0.15; % Balanced sensitivity
 
                 otherwise
                     if ismember(type, obj.valid_methods)
                         methods = {type};
                         methodWeights = [1.0]; % Single method with full weight
-                        baseThreshold = 0.15; % Default threshold for single method
                     else
                         error('Unknown type dimension: %s. Must be urban, natural, or mixed.', type);
                     end
@@ -953,141 +812,6 @@ classdef differenceEstimationFunctions < handle
                 % Apply moderate morphological operations
                 se = strel('disk', 2);
                 enhancedMasks{i} = imopen(imclose(enhancedMasks{i}, se), se);
-            end
-        end
-
-        function differenceMasks = calculateWithRelativeParams(obj, indices, method, thresholdPercent, blockSizePercent, areaMinPercent, areaMaxPercent)
-            % Calculate difference masks using relative (percentage-based) parameters
-            % Arguments:
-            %   indices - image indices to process
-            %   method - detection method
-            %   thresholdPercent - threshold as percentage (0-100)
-            %   blockSizePercent - block size as percentage of smaller image dimension (0-100)
-            %   areaMinPercent - minimum area as percentage of total image area (0-100)
-            %   areaMaxPercent - maximum area as percentage of total image area (0-100)
-
-            % Get reference image for dimension calculations
-            isInSelection = ismember(obj.overlay.lastIndices, indices);
-            filteredImages = obj.overlay.warpedImages(isInSelection);
-
-            if isempty(filteredImages)
-                error('No images available for calculation');
-            end
-
-            referenceImage = filteredImages{1};
-            [imgHeight, imgWidth] = size(referenceImage, [1, 2]);
-            totalPixels = imgHeight * imgWidth;
-            smallerDim = min(imgHeight, imgWidth);
-
-            % Convert relative parameters to absolute values
-            absoluteParams = obj.convertRelativeToAbsolute(...
-                thresholdPercent, blockSizePercent, areaMinPercent, areaMaxPercent, ...
-                smallerDim, totalPixels);
-
-            % Call regular calculate method with absolute parameters
-            differenceMasks = obj.calculate(indices, method, ...
-                absoluteParams.threshold, absoluteParams.blockSize, ...
-                absoluteParams.areaMin, absoluteParams.areaMax);
-        end
-
-        function absoluteParams = convertRelativeToAbsolute(obj, thresholdPercent, blockSizePercent, areaMinPercent, areaMaxPercent, smallerDim, totalPixels)
-            % Convert percentage-based parameters to absolute values
-            % Returns a struct with absolute parameter values
-
-            absoluteParams = struct();
-
-            % Threshold remains as percentage but normalized to 0-1 range
-            absoluteParams.threshold = max(0.01, min(1.0, thresholdPercent / 100));
-
-            % Block size as percentage of smaller image dimension
-            % Minimum 1 pixel, maximum 30% of smaller dimension
-            maxBlockSize = max(1, floor(smallerDim * 0.3));
-            absoluteParams.blockSize = max(1, min(maxBlockSize, ...
-                ceil(smallerDim * blockSizePercent / 100)));
-
-            % Area parameters as percentage of total image area
-            % Ensure minimum area is at least 1 pixel and maximum doesn't exceed total
-            absoluteParams.areaMin = max(1, floor(totalPixels * areaMinPercent / 100));
-            absoluteParams.areaMax = max(absoluteParams.areaMin + 1, ...
-                min(totalPixels, floor(totalPixels * areaMaxPercent / 100)));
-
-            % Ensure logical constraints
-            if absoluteParams.areaMax <= absoluteParams.areaMin
-                absoluteParams.areaMax = absoluteParams.areaMin + 10;
-            end
-        end
-
-        function relativeParams = convertAbsoluteToRelative(obj, threshold, blockSize, areaMin, areaMax, smallerDim, totalPixels)
-            % Convert absolute parameters to percentage-based values
-            % Useful for displaying current values in relative terms
-
-            relativeParams = struct();
-
-            % Threshold as percentage (0-100)
-            relativeParams.thresholdPercent = threshold * 100;
-
-            % Block size as percentage of smaller dimension
-            relativeParams.blockSizePercent = (blockSize / smallerDim) * 100;
-
-            % Area parameters as percentage of total image area
-            relativeParams.areaMinPercent = (areaMin / totalPixels) * 100;
-            relativeParams.areaMaxPercent = (areaMax / totalPixels) * 100;
-        end
-
-        function differenceMasks = calculateWithMixedParams(obj, indices, method, thresholdPercent, blockSizePixels, areaMinPercent, areaMaxPercent)
-            % Calculate difference masks using mixed parameter system
-            % Arguments:
-            %   indices - image indices to process
-            %   method - detection method
-            %   thresholdPercent - threshold as percentage (1-100)
-            %   blockSizePixels - block size in absolute pixels (1-100)
-            %   areaMinPercent - minimum area as percentage of total image area (0.001-10)
-            %   areaMaxPercent - maximum area as percentage of total image area (0.01-50)
-
-            % Get reference image for dimension calculations
-            isInSelection = ismember(obj.overlay.lastIndices, indices);
-            filteredImages = obj.overlay.warpedImages(isInSelection);
-
-            if isempty(filteredImages)
-                error('No images available for calculation');
-            end
-
-            referenceImage = filteredImages{1};
-            [imgHeight, imgWidth] = size(referenceImage, [1, 2]);
-            totalPixels = imgHeight * imgWidth;
-
-            % Convert mixed parameters to absolute values
-            absoluteParams = obj.convertMixedToAbsolute(...
-                thresholdPercent, blockSizePixels, areaMinPercent, areaMaxPercent, ...
-                totalPixels);
-
-            % Call regular calculate method with absolute parameters
-            differenceMasks = obj.calculate(indices, method, ...
-                absoluteParams.threshold, absoluteParams.blockSize, ...
-                absoluteParams.areaMin, absoluteParams.areaMax);
-        end
-
-        function absoluteParams = convertMixedToAbsolute(~, thresholdPercent, blockSizePixels, areaMinPercent, areaMaxPercent, totalPixels)
-            % Convert mixed parameter system to absolute values
-            % Returns a struct with absolute parameter values
-
-            absoluteParams = struct();
-
-            % Threshold: convert percentage to 0-1 range
-            absoluteParams.threshold = max(0.01, min(1.0, thresholdPercent / 100));
-
-            % Block size: already in pixels, just ensure it's within valid range and integer
-            absoluteParams.blockSize = max(1, min(100, ceil(blockSizePixels)));
-
-            % Area parameters: convert percentages to pixel counts
-            % Ensure minimum area is at least 1 pixel and maximum doesn't exceed total
-            absoluteParams.areaMin = max(1, floor(totalPixels * areaMinPercent / 100));
-            absoluteParams.areaMax = max(absoluteParams.areaMin + 1, ...
-                min(totalPixels, floor(totalPixels * areaMaxPercent / 100)));
-
-            % Ensure logical constraints
-            if absoluteParams.areaMax <= absoluteParams.areaMin
-                absoluteParams.areaMax = absoluteParams.areaMin + 10;
             end
         end
     end
