@@ -296,16 +296,16 @@ classdef DifferenceView < handle
             selected = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
             
             % Enforce max 2 selections
-            if numel(selected) > 2
-                % Revert the current checkbox selection
-                obj.Checkboxes(idx).Value = false;
-        
-                % Show warning
-                uialert(obj.App.UIFigure, ...
-                    'You can only select up to two images.', ...
-                    'Selection Limit');
-                return;
-            end
+            % if numel(selected) > 2
+            %     % Revert the current checkbox selection
+            %     obj.Checkboxes(idx).Value = false;
+            % 
+            %     % Show warning
+            %     uialert(obj.App.UIFigure, ...
+            %         'You can only select up to two images.', ...
+            %         'Selection Limit');
+            %     return;
+            % end
 
             % Keep only those that were used in last calculation
             validSelection = intersect(selected, obj.App.OverlayClass.lastIndices);
