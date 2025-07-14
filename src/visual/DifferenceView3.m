@@ -1,7 +1,6 @@
 classdef DifferenceView3 < handle
     properties (Access = private)
         App             matlab.apps.AppBase
-        dataAvailable
 
         % Main layout components
         Grid            matlab.ui.container.GridLayout
@@ -83,7 +82,6 @@ classdef DifferenceView3 < handle
     methods
         function obj = DifferenceView3(app)
             obj.App = app;
-            obj.dataAvailable = false;
             obj.isUpdatingPreset = false;
 
             % Initialize image-dependent area scaling
@@ -111,8 +109,10 @@ classdef DifferenceView3 < handle
 
         %% Interface methods for the main app
         function onImLoad(obj)
+            if ~obj.App.dataLoaded
+                return
+            end
             % Called when new images are loaded - reset the view completely
-            obj.dataAvailable = true; % Set to true like DifferenceView
             obj.currentMasks = [];
             obj.currentResults = [];
 
@@ -149,6 +149,7 @@ classdef DifferenceView3 < handle
                 % If we can't get image size, use defaults
                 obj.updateAreaSliderLimits();
             end
+            obj.RefreshGroupButton.Enable = true;
             obj.update();
             obj.onCustomParameterChanged();
         end
@@ -164,12 +165,11 @@ classdef DifferenceView3 < handle
 
         function update(obj)
             % Update view if data is available (like DifferenceView)
-            if ~obj.dataAvailable
-                return;
+            if ~obj.App.dataLoaded
+                return
             end
 
             disp("update")
-            obj.updateCheckboxes();  % Update checkboxes based on current state
 
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
@@ -193,6 +193,7 @@ classdef DifferenceView3 < handle
                 obj.MasksCheckbox.Enable = 'off';
                 obj.MasksCheckbox.Value = false;  % Disable and uncheck
             end
+            obj.updateCheckboxes();  % Update checkboxes based on current state
             obj.updateSlider();
             obj.updateVisualization();
         end
@@ -459,6 +460,7 @@ classdef DifferenceView3 < handle
                 'FontSize', 12);
             obj.RefreshGroupButton.Layout.Row = 1;
             obj.RefreshGroupButton.Layout.Column = 2;
+            obj.RefreshGroupButton.Enable = false;  % Initially disabled
 
             % Image Selection checkboxes
             obj.CheckboxGrid = uigridlayout(imageLayout);
@@ -876,7 +878,7 @@ classdef DifferenceView3 < handle
             end
 
             % Update visualization if data is available
-            if obj.dataAvailable
+            if obj.App.dataLoaded
                 obj.updateVisualization();
             end
         end
@@ -910,13 +912,16 @@ classdef DifferenceView3 < handle
 
         function onMaskSelectionChanged(obj)
             % Handle mask navigation
-            if obj.dataAvailable
+            if obj.App.dataLoaded
                 obj.updateVisualization();
             end
         end
 
         function onCalculatePressed(obj)
             % Handle calculate button press
+            if ~obj.App.dataLoaded
+                return
+            end
             try
                 obj.updateStatus('Calculating changes...');
                 obj.CalculateButton.Enable = 'off';
@@ -1006,15 +1011,9 @@ classdef DifferenceView3 < handle
 
                 % Setup mask navigation
                 if ~isempty(obj.currentMasks)
-                    % Create image and mask stacks for TimeSlider-style blending
-                    obj.dataAvailable = true;
-
                     % Update visualization
                     obj.updateVisualization();
-
-                    if obj.dataAvailable
-                        obj.updateAnalysisTab();
-                    end
+                    obj.updateAnalysisTab();
 
                     % Provide detailed status
                     usePresetInfo = {};
@@ -1037,7 +1036,6 @@ classdef DifferenceView3 < handle
             catch exception
                 obj.updateStatus(['Calculation error: ' exception.message]);
                 obj.currentMasks = {};
-                obj.dataAvailable = false;
                 obj.CalculateButton.Enable = 'on';
                 drawnow;
             end
@@ -1045,7 +1043,6 @@ classdef DifferenceView3 < handle
 
         function onClearPressed(obj)
             % Handle clear button press
-            obj.dataAvailable = false;
             obj.currentMasks = [];
             obj.currentResults = [];
 
@@ -1062,8 +1059,10 @@ classdef DifferenceView3 < handle
         % Note: onToggleImageSelection removed - using tabbed interface now
 
         function onGroupChanged(obj)
+            if ~obj.App.dataLoaded
+                return
+            end
             % Handle group selection change (like DifferenceView)
-            disp('Group selection changed');
             if ~obj.App.OverlayClass.resultAvailable
                 return
             end
@@ -1492,7 +1491,7 @@ classdef DifferenceView3 < handle
 
         function updateAnalysisTab(obj)
             % Update the analysis tab with detailed analysis
-            if ~obj.dataAvailable
+            if ~obj.App.dataLoaded
                 return;
             end
 
@@ -1733,7 +1732,7 @@ classdef DifferenceView3 < handle
         % New TimeSlider-style event handlers
         function onDisplayOptionsChanged(obj)
             % Handle changes to image/mask display checkboxes (immediate update)
-            if obj.dataAvailable
+            if obj.App.dataLoaded
                 obj.updateVisualization();
             end
         end
@@ -1747,7 +1746,7 @@ classdef DifferenceView3 < handle
             obj.SigmaLabel.Text = sprintf('Blend Amount: %.1f', obj.sigma);
 
             % Update visualization immediately if in Individual mode
-            if obj.dataAvailable && strcmp(obj.VisualizationDropdown.Value, 'Individual')
+            if obj.App.dataLoaded && strcmp(obj.VisualizationDropdown.Value, 'Individual')
                 obj.updateVisualization();
             end
         end
