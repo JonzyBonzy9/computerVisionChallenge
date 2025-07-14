@@ -232,69 +232,70 @@ classdef OverlayView < handle
 
         function calculate(obj)
             % Ensure checkboxes are valid
-            try
-                selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
-    
-                if length(selectedIndices) < 2
-                    uialert(obj.App.UIFigure, 'Please select at least two images.', 'Not enough images');
-                    return;
-                end
-    
-                method = obj.MethodDropdown.Value;
-    
-                obj.CalculateButton.Text = 'Calculating...';
-                obj.CalculateButton.Enable = 'off';
-                obj.StatusTextArea.Value = "";
-    
-                drawnow;  % Force UI update
-    
-                obj.App.OverlayClass.calculate(selectedIndices, method, @obj.printStatus);
-    
-                obj.CalculateButton.Text = 'Calculate Overlay';
-                obj.CalculateButton.Enable = 'on';
-    
-                % update checkboxes to reflect indices
-                for i = 1:length(obj.Checkboxes)
-                    if ismember(i, selectedIndices)
-                        obj.Checkboxes(i).FontColor = [0, 1, 0];  % Green
-                        obj.Checkboxes(i).Value = true;
-                    else
-                        obj.Checkboxes(i).FontColor = [1, 1, 1];  % White
-                        obj.Checkboxes(i).Value = false;
-                    end
-                end
-                obj.onCheckboxChanged();
-    
-                % get scorematrix
-                scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
-    
-                h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
-                    'MissingDataLabel', '', ...
-                    'MissingDataColor', [0.8, 0.8, 0.8], ...
-                    'Colormap', copper);
-                dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
-                dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
-                % Only show X-axis labels, hide Y-axis labels
-                h.XDisplayLabels = dateLabels;
-                h.YDisplayLabels = dateLabels;  % empty Y labels
-    
-                overlay = obj.App.OverlayClass.createOverlay(selectedIndices,obj.group);
-    
-                imshow(overlay, 'Parent', obj.Axes);
-    
-                % --- Graph display ---
-                obj.App.OverlayClass.plotReachabilityGraph(obj.GraphAxes);
-    
-                % --- update Groups ---
-                obj.updateGroups(obj.App.OverlayClass.groups);
-            catch ME
-                uialert(obj.App.UIFigure, ...
-                    ['An unknown error occurred.',...
-                    'Please retry the operation. If the error persists, restart the app or contact the developers.'], ...
-                    'Error');
-                obj.CalculateButton.Text = 'Calculate Overlay';
-                obj.CalculateButton.Enable = 'on';
+            % try
+            selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
+
+            if length(selectedIndices) < 2
+                uialert(obj.App.UIFigure, 'Please select at least two images.', 'Not enough images');
+                return;
             end
+
+            method = obj.MethodDropdown.Value;
+
+            obj.CalculateButton.Text = 'Calculating...';
+            obj.CalculateButton.Enable = 'off';
+            obj.StatusTextArea.Value = "";
+
+            drawnow;  % Force UI update
+
+            obj.App.OverlayClass.calculate(selectedIndices, method, @obj.printStatus);
+
+            obj.CalculateButton.Text = 'Calculate Overlay';
+            obj.CalculateButton.Enable = 'on';
+
+            % update checkboxes to reflect indices
+            for i = 1:length(obj.Checkboxes)
+                if ismember(i, selectedIndices)
+                    obj.Checkboxes(i).FontColor = [0, 1, 0];  % Green
+                    obj.Checkboxes(i).Value = true;
+                else
+                    obj.Checkboxes(i).FontColor = [1, 1, 1];  % White
+                    obj.Checkboxes(i).Value = false;
+                end
+            end
+            obj.onCheckboxChanged();
+
+            % get scorematrix
+            scoreMatrix = obj.App.OverlayClass.createScoreConfusion();
+
+            h = heatmap(obj.HeatmapPanel, scoreMatrix, ...
+                'MissingDataLabel', '', ...
+                'MissingDataColor', [0.8, 0.8, 0.8], ...
+                'Colormap', copper);
+            dates = arrayfun(@(i) obj.App.OverlayClass.imageArray{i}.id, obj.App.OverlayClass.lastIndices);  % Extract datetime
+            dateLabels = cellstr(datestr(dates, 'yyyy-mm'));        % Format to string
+            % Only show X-axis labels, hide Y-axis labels
+            h.XDisplayLabels = dateLabels;
+            h.YDisplayLabels = dateLabels;  % empty Y labels
+
+            overlay = obj.App.OverlayClass.createOverlay(selectedIndices,obj.group);
+
+            imshow(overlay, 'Parent', obj.Axes);
+
+            % --- Graph display ---
+            obj.App.OverlayClass.plotReachabilityGraph(obj.GraphAxes);
+
+            % --- update Groups ---
+            obj.updateGroups(obj.App.OverlayClass.groups);
+            %catch ME
+            %    disp(ME.message);
+            %    uialert(obj.App.UIFigure, ...
+            %        ['An unknown error occurred.',...
+            %        'Please retry the operation. If the error persists, restart the app or contact the developers.'], ...
+            %        'Error');
+            %    obj.CalculateButton.Text = 'Calculate Overlay';
+            %    obj.CalculateButton.Enable = 'on';
+            %end
         end
     end
 

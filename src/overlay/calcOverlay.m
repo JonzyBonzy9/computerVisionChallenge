@@ -273,7 +273,8 @@ classdef calcOverlay < handle
         end
 
         function createImageStack(obj)
-            % Create 4D image stack from warpedImages for efficient blending
+            % Create 4D image stack from warpedImages for efficient data processing
+            % one of those stacks per group stored in cell
             if isempty(obj.warpedImages)
                 obj.imageStack = [];
                 return;
@@ -281,14 +282,21 @@ classdef calcOverlay < handle
 
             % Get dimensions from first image
             [H, W, C] = size(obj.warpedImages{1});
-
             numGroups = numel(obj.groups);
             obj.imageStack = cell(1, numGroups);
-            for k = 1: numGroups
+            % loop through groups
+            for k = 1:numGroups
                 groupSize = length(obj.groups{k});
                 obj.imageStack{k} = zeros(H, W, C, groupSize, 'like', obj.warpedImages{1});
+                % loop through images in group
                 for i = 1:groupSize
-                    obj.imageStack{k}(:,:,:,i) = obj.warpedImages{obj.groups{k}(i)};
+                    % Find the position of this group image index in lastIndices
+                    originalImageIdx = obj.groups{k}(i);
+                    warpedImagePos = find(obj.lastIndices == originalImageIdx);
+
+                    if ~isempty(warpedImagePos)
+                        obj.imageStack{k}(:,:,:,i) = obj.warpedImages{warpedImagePos};
+                    end
                 end
             end
         end
