@@ -31,7 +31,7 @@ Main view:
     - Graph: depicts the clustered reachability graph with edge weights included.
   Right: user interaction options
   - Group: select group in order ot integrate selected pictures into groups. Use for quick A-B comparison between several picture sets.
-  - chechboxes of dates: select desired pictures to be included in the visualization.
+  - Chechboxes of dates: select desired pictures to be included in the visualization.
   - Clear all: clears all checkboxes.
   - Select all: selects all checkboxes.
   - Select algorithm: choose the desired algorithm for overlay calculations. Options: graph, successive
@@ -54,6 +54,21 @@ Main view:
         - Spatial Scale: Options: small, medium, large
         - Temporal Processing: Options: fast, medium, slow
       - Detection Parameters: fine tune the parameters for the specific edge case scenario
+        - Threshold: defines the threshold in difference above which shall be shown.
+        - Block Size: defines the size of block pixels for calculating differences.
+        - Min Area: minimum area to be recognized. 
+        - Max Area: maximum are to be recognized.
+      - Calculate Changes: click to update view with newly set parameters.
+    - Visualization:
+      - Visualization mode: selects teh view mode. Options: Individual (step through with time slider), combined (see all selected pcitures at the same time)
+      - Display Options:
+        - Images: displays loaded and selected images (deselect to see only masks). 
+        - Masks: displays calculated masks (deselect to see only pictures).
+        - Individual Mode Controls:
+          - Blend amount: choose how many pictures should be blended into each other.
+          - Time Slider: select picture as main picture by date.
+        - Combined Mode Controls:
+          Select difference visualization to be shown. Options: heatmap, temporal overlay, max, sum, average
 
 
 # How to operate
