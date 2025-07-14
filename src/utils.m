@@ -64,10 +64,36 @@ classdef utils
             [validDates, sortIdx] = sort(validDates);
             validFiles = validFiles(sortIdx);
         
-            % Load images
+            % Load images and record sizes
             imgs = cell(1, length(validFiles));
+            heights = zeros(1, length(validFiles));
+            widths = zeros(1, length(validFiles));
+            channels = zeros(1, length(validFiles));
+            
             for k = 1:length(validFiles)
-                imgs{k} = imread(validFiles{k});
+                img = imread(validFiles{k});
+                imgs{k} = img;
+                [heights(k), widths(k), channels(k)] = size(img);
+            end
+            
+            % Determine target size
+            targetHeight = max(heights);
+            targetWidth = max(widths);
+            targetChannels = max(channels);
+            
+            % Pad images to match target size
+            for k = 1:length(imgs)
+                img = imgs{k};
+                [h, w, c] = size(img);
+                
+                % If image has fewer channels, expand to match
+                if c < targetChannels
+                    img = repmat(img, 1, 1, targetChannels);  % naive RGB duplication if needed
+                end
+                
+                paddedImg = zeros(targetHeight, targetWidth, targetChannels, 'like', img);
+                paddedImg(1:h, 1:w, 1:c) = img;  % top-left padding
+                imgs{k} = paddedImg;
             end
         
             % Create output image array
