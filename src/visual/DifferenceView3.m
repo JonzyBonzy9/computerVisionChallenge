@@ -135,7 +135,7 @@ classdef DifferenceView3 < handle
 
             % Reset parameters to defaults (logarithmic scale for areas)
             obj.ThresholdSlider.Value = 20;    % 20% threshold (within [1, 100] range)
-            obj.BlockSizeSlider.Value = 3;     % 3 pixels block size (within [1, 100] range)
+            obj.BlockSizeSlider.Value = 1;     % 3 pixels block size (within [1, 100] range)
             obj.AreaMinSlider.Value = 2;       % Log scale: 10^2 = 100 pixels
             obj.AreaMaxSlider.Value = 4;       % Log scale: 10^4 = 10000 pixels
 
@@ -296,14 +296,14 @@ classdef DifferenceView3 < handle
                 'areaMaxPixels', 100);          % 100 pixels maximum
 
             obj.ChangeTypePresets.scale.medium = struct(...
-                'blockSizePixels', 3, ...       % 3 pixel block size
-                'areaMinPixels', 105, ...        % 10 pixels minimum
-                'areaMaxPixels', 66000);         % 1000 pixels maximum
+                'blockSizePixels', 1, ...       % 3 pixel block size
+                'areaMinPixels', 100, ...        % 10 pixels minimum
+                'areaMaxPixels', 200000);         % 1000 pixels maximum
 
             obj.ChangeTypePresets.scale.large = struct(...
                 'blockSizePixels', 10, ...      % 10 pixel block size
                 'areaMinPixels', 1000, ...       % 100 pixels minimum
-                'areaMaxPixels', 100000);        % 10000 pixels maximum
+                'areaMaxPixels', 100000000);        % 10000 pixels maximum
 
             % ALGORITHM/TYPE dimension (combines detection method - temporal filter removed from algorithm control)
             obj.ChangeTypePresets.algorithmType = struct();
@@ -375,23 +375,32 @@ classdef DifferenceView3 < handle
 
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
-                'algorithm', 'absdiff', ...             % Simple difference detection for buildings
+                'algorithm', 'ssim', ...             % Simple difference detection for buildings
                 'threshold', 20, ...                    % 20% threshold for clear changes
                 'blockSize', 1, ...                     % 1 pixel block size for fine detail
-                'areaMinPixels', 105, ...               % 105 pixels minimum area (0.0029% for large images)
-                'areaMaxPercent', 4, ...                % 4% max area for large structures
+                'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
+                'areaMaxPercent', 200000, ...                % 4% max area for large structures
                 'temporalFilter', 'fast', ...           % Fast temporal processing for urban changes
                 'scale', 'medium');                     % Medium spatial scale
 
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.natural = struct(...
-                'algorithm', 'texture_change', ...      % Texture-based for natural features
-                'threshold', 15, ...                    % 15% threshold (more sensitive for natural changes)
-                'blockSize', 5, ...                     % 5 pixel block size for organic textures
-                'areaMinPixels', 500, ...               % 500 pixels minimum area (larger organic features)
-                'areaMaxPercent', 8, ...                % 8% max area for natural formations
+                'algorithm', 'ssim', ...      % Texture-based for natural features
+                'threshold', 0.2, ...                    % 15% threshold (more sensitive for natural changes)
+                'blockSize', 3, ...                     % 5 pixel block size for organic textures
+                'areaMinPixels', 100000, ...               % 500 pixels minimum area (larger organic features)
+                'areaMaxPercent', 100000000, ...                % 8% max area for natural formations
                 'temporalFilter', 'medium', ...         % Medium temporal processing for gradual changes
                 'scale', 'large');                      % Large spatial scale for natural features
+
+            obj.EnvironmentPresets.mixed = struct(...
+                'algorithm', 'gradient', ...             % Simple difference detection for buildings
+                'threshold', 5, ...                    % 20% threshold for clear changes
+                'blockSize', 2, ...                     % 1 pixel block size for fine detail
+                'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
+                'areaMaxPercent', 50000, ...                % 4% max area for large structures
+                'temporalFilter', 'fast', ...           % Fast temporal processing for urban changes
+                'scale', 'medium');                     % Medium spatial scale
         end
 
         function createMainLayout(obj)
@@ -604,7 +613,7 @@ classdef DifferenceView3 < handle
             obj.BlockSizeLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.BlockSizeSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_blockSize, 'Value', 3, ...
+            obj.BlockSizeSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_blockSize, 'Value', 1, ...
                 'Tooltip', 'Block size in pixels (1-100)');
             obj.BlockSizeSlider.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
@@ -807,11 +816,6 @@ classdef DifferenceView3 < handle
             % Handle environment preset selection
             preset = obj.EnvironmentPresetDropdown.Value;
 
-            if strcmp(preset, 'Custom')
-                obj.updateStatus('Environment preset set to Custom - manual parameter control');
-                return;
-            end
-
             try
                 obj.isUpdatingPreset = true;
 
@@ -955,7 +959,7 @@ classdef DifferenceView3 < handle
             % Update parameter labels and reset dropdowns when manually adjusting
             if ~obj.isUpdatingPreset
                 % Manual adjustment - reset preset dropdowns to custom and update labels normally
-                obj.EnvironmentPresetDropdown.Value = 'fast';
+                obj.EnvironmentPresetDropdown.Value = 'urban';
                 obj.ScaleDropdown.Value = 'Custom';
 
                 % Use appropriate labels for manual control

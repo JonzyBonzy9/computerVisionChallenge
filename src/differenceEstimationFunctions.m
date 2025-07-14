@@ -29,13 +29,13 @@ classdef differenceEstimationFunctions < handle
 
     properties (Constant)
         % define value ranges etc
-        valid_methods = {'absdiff','gradient','ssim','dog','pca','temporal_analysis','texture_change','edge_evolution'};
+        valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution'};
         valid_change_types = {'urban', 'natural', 'mixed'};
         valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
-        value_range_threshold = [1, 100];
-        value_range_blockSize = [1, 100];
-        value_range_areaMin = [0, 4];
-        value_range_areaMax = [1, 6];
+        value_range_threshold = [0, 100];
+        value_range_blockSize = [0, 100];
+        value_range_areaMin = [0, 6];
+        value_range_areaMax = [1, 9];
     end
 
     methods
@@ -696,8 +696,8 @@ classdef differenceEstimationFunctions < handle
 
                 case 'natural'
                     % Natural environments: emphasize texture and smooth changes
-                    methods = {'texture_change', 'absdiff'};
-                    methodWeights = [0.6, 0.4]; % Primary: texture, Secondary: basic difference
+                    methods = {'ssim', 'gradient'};
+                    methodWeights = [0.5, 0.5]; % Primary: texture, Secondary: basic difference
 
                 case 'mixed'
                     % Mixed environments: balanced approach with multiple methods
