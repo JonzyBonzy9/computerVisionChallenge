@@ -74,6 +74,7 @@ Main view:
 # How to operate
 
 1.) start the app by running the main.m file. Alternatively: install the packaged cvApp.mltbx file and start it through the matlab app handler. 
+
 2.) the GUI will now show. The GUI is divided into different sections. Either select open in toolbar -> file -> open or click the "Open" button in the menu bar. 
 A pop-up window will open for the user to select the desired folder with the datasets. Beware: the user must have access to the specified folder, it should not be a network drive and ideally it is located in the matlab working directory. 
 
