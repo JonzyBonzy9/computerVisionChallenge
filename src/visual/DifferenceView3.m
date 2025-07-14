@@ -25,7 +25,8 @@ classdef DifferenceView3 < handle
         % Unified algorithm/type dropdown and visualization controls
         EnvironmentPresetDropdown matlab.ui.control.DropDown
         AlgorithmTypeDropdown   matlab.ui.control.DropDown
-        VisualizationDropdown   matlab.ui.control.DropDown
+        IndividualModeButton    matlab.ui.control.StateButton
+        CombinedModeButton      matlab.ui.control.StateButton
         CombinationDropdown     matlab.ui.control.DropDown
 
         % Visualization display controls (like TimeSliderOverlay)
@@ -69,6 +70,7 @@ classdef DifferenceView3 < handle
         currentMasks
         group
         isUpdatingPreset logical  % Flag to prevent recursive updates
+        currentVisualizationMode string  % 'Individual' or 'Combined'
 
         % TimeSlider-like functionality for individual mode
         imageStack          % 4D array of images for efficient blending
@@ -89,6 +91,7 @@ classdef DifferenceView3 < handle
         function obj = DifferenceView3(app)
             obj.App = app;
             obj.isUpdatingPreset = false;
+            obj.currentVisualizationMode = "Individual";  % Default mode
 
             % Initialize image-dependent area scaling
             obj.currentImageSize = [480, 640];  % Default image size
@@ -644,11 +647,28 @@ classdef DifferenceView3 < handle
             visualTypeLabel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.VisualizationDropdown = uidropdown(visualLayout, ...
-                'Items', {'Individual', 'Combined'}, ...
-                'Value', 'Individual', ...
-                'Tooltip', 'Select Individual (slider-based) or Combined visualization');
-            obj.VisualizationDropdown.Layout.Row = currentRow;
+            % Create button grid for visualization mode selection
+            buttonGrid = uigridlayout(visualLayout);
+            buttonGrid.Layout.Row = currentRow;
+            buttonGrid.RowHeight = {'fit'};
+            buttonGrid.ColumnWidth = {'1x', '1x'};
+            buttonGrid.ColumnSpacing = 5;
+            buttonGrid.Padding = [0, 0, 0, 0];
+
+            obj.IndividualModeButton = uibutton(buttonGrid, 'state', ...
+                'Text', 'Individual', ...
+                'Value', true, ...
+                'Tooltip', 'Individual visualization with slider control');
+            obj.IndividualModeButton.Layout.Row = 1;
+            obj.IndividualModeButton.Layout.Column = 1;
+
+            obj.CombinedModeButton = uibutton(buttonGrid, 'state', ...
+                'Text', 'Combined', ...
+                'Value', false, ...
+                'Tooltip', 'Combined visualization of all changes');
+            obj.CombinedModeButton.Layout.Row = 1;
+            obj.CombinedModeButton.Layout.Column = 2;
+
             currentRow = currentRow + 1;
 
             % === Display Options ===
@@ -671,12 +691,12 @@ classdef DifferenceView3 < handle
             currentRow = currentRow + 1;
 
             obj.individualPanel = obj.createSection(visualLayout, 'Individual Mode Controls', currentRow + 2);
-            obj.individualPanel.Visible = 'off';  % Initially hidden
+            obj.individualPanel.Visible = 'on';  % Initially visible (default mode)
             individualGrid = uigridlayout(obj.individualPanel);
             individualGrid.RowHeight = {'fit', 'fit', 'fit', 90, 'fit'};
             individualGrid.ColumnWidth = {'1x'};
             obj.combinedPanel = obj.createSection(visualLayout, 'Combined Mode Controls', currentRow + 2);
-            obj.combinedPanel.Visible = 'on';
+            obj.combinedPanel.Visible = 'off';  % Initially hidden
             combinedGrid = uigridlayout(obj.combinedPanel);
             combinedGrid.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit'};
             combinedGrid.ColumnWidth = {'1x'};
@@ -742,7 +762,8 @@ classdef DifferenceView3 < handle
             % Set up all event handlers
             obj.EnvironmentPresetDropdown.ValueChangedFcn = @(src, event) obj.onEnvironmentPresetChanged();
             obj.AlgorithmTypeDropdown.ValueChangedFcn = @(src, event) obj.onAlgorithmTypeChanged();
-            obj.VisualizationDropdown.ValueChangedFcn = @(src, event) obj.onVisualizationChanged();
+            obj.IndividualModeButton.ValueChangedFcn = @(src, event) obj.onVisualizationModeChanged(src, 'Individual');
+            obj.CombinedModeButton.ValueChangedFcn = @(src, event) obj.onVisualizationModeChanged(src, 'Combined');
             obj.CombinationDropdown.ValueChangedFcn = @(src, event) obj.onVisualizationChanged();
 
             % Two-dimensional preset handlers
@@ -888,9 +909,30 @@ classdef DifferenceView3 < handle
             end
         end
 
+        function onVisualizationModeChanged(obj, src, mode)
+            % Handle visualization mode button press
+            if src.Value  % Button is pressed (active)
+                % Set the current mode
+                obj.currentVisualizationMode = mode;
+
+                % Update button states (mutual exclusion)
+                if strcmp(mode, 'Individual')
+                    obj.CombinedModeButton.Value = false;
+                else
+                    obj.IndividualModeButton.Value = false;
+                end
+
+                % Trigger visualization update
+                obj.onVisualizationChanged();
+            else
+                % If user tries to deactivate current mode, reactivate it
+                src.Value = true;
+            end
+        end
+
         function onVisualizationChanged(obj)
             % Handle visualization type change and update control visibility
-            visualizationType = obj.VisualizationDropdown.Value;
+            visualizationType = obj.currentVisualizationMode;
 
             % Update control visibility based on mode
             switch visualizationType
@@ -1058,7 +1100,9 @@ classdef DifferenceView3 < handle
                 end
                 % update view
                 obj.CalculateButton.Enable = 'on';
-                obj.VisualizationDropdown.Value = 'Combined';
+                obj.currentVisualizationMode = "Combined";
+                obj.CombinedModeButton.Value = true;
+                obj.IndividualModeButton.Value = false;
                 obj.onVisualizationChanged();
                 obj.update();
                 obj.updateAnalysisTab();
@@ -1130,7 +1174,7 @@ classdef DifferenceView3 < handle
                 return
             end
             obj.clearAxes(obj.MainAxes);
-            visualizationType = obj.VisualizationDropdown.Value;
+            visualizationType = obj.currentVisualizationMode;
             switch visualizationType
                 case 'Individual'
                     obj.blendImages(obj.MainAxes, obj.group);
@@ -1778,7 +1822,7 @@ classdef DifferenceView3 < handle
             obj.SigmaLabel.Text = sprintf('Blend Amount: %.1f', obj.sigma);
 
             % Update visualization immediately if in Individual mode
-            if obj.App.dataLoaded && strcmp(obj.VisualizationDropdown.Value, 'Individual')
+            if obj.App.dataLoaded && strcmp(obj.currentVisualizationMode, 'Individual')
                 obj.updateVisualization();
             end
         end
