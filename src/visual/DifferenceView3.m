@@ -489,7 +489,7 @@ classdef DifferenceView3 < handle
             obj.parametersTab = uitab(obj.controlTabGroup, 'Title', 'Parameters');
 
             paramLayout = uigridlayout(obj.parametersTab);
-            paramLayout.RowHeight = repmat({'fit'}, 1, 27); % Increased from 25 to 27 rows for environment preset controls
+            paramLayout.RowHeight = {'fit', 'fit', 'fit', 10, 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             paramLayout.ColumnWidth = {'1x'};
             paramLayout.RowSpacing = 5;
             paramLayout.Padding = [10, 10, 10, 10];
@@ -497,118 +497,135 @@ classdef DifferenceView3 < handle
 
             currentRow = 1;
 
-            % === Environment Preset Selection ===
-            presetLabel = uilabel(paramLayout, 'Text', 'Environment Preset:', 'FontWeight', 'bold');
-            presetLabel.Layout.Row = currentRow;
+            % === HIGHLIGHTED PRESET SELECTION ===
+            % Create highlighted panel for preset selection
+            presetPanel = uipanel(paramLayout, ...
+                'Title', 'Quick Start - Environment Presets', ...
+                'FontWeight', 'bold');
+            presetPanel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.EnvironmentPresetDropdown = uidropdown(paramLayout, ...
+            presetGrid = uigridlayout(presetPanel);
+            presetGrid.RowHeight = {'fit', 'fit'};
+            presetGrid.ColumnWidth = {'1x'};
+            presetGrid.RowSpacing = 8;
+            presetGrid.Padding = [15, 15, 15, 15];
+
+            obj.EnvironmentPresetDropdown = uidropdown(presetGrid, ...
                 'Items', differenceEstimationFunctions.valid_change_types, ...
                 'Value', 'fast', ...
-                'Tooltip', 'Select environment-optimized preset configuration');
-            obj.EnvironmentPresetDropdown.Layout.Row = currentRow;
+                'Tooltip', 'Select environment-optimized preset configuration', ...
+                'FontSize', 11);
+            obj.EnvironmentPresetDropdown.Layout.Row = 1;
+
+            % === CALCULATE BUTTON - Prominently placed ===
+            obj.CalculateButton = uibutton(presetGrid, 'push', ...
+                'Text', 'Calculate Changes', ...
+                'BackgroundColor', [0.2, 0.6, 0.2], ...
+                'FontSize', 12, ...
+                'FontWeight', 'bold');
+            obj.CalculateButton.Layout.Row = 2;
+
+            % === SPACER ===
+            spacer = uilabel(paramLayout, 'Text', '');
+            spacer.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            % === Unified Algorithm/Type Selection ===
-            algorithmLabel = uilabel(paramLayout, 'Text', 'Detection Algorithm:', 'FontWeight', 'bold');
-            algorithmLabel.Layout.Row = currentRow;
+            % === ADVANCED SETTINGS SECTION ===
+            advancedPanel = uipanel(paramLayout, ...
+                'Title', 'Advanced Settings', ...
+                'FontWeight', 'bold');
+            advancedPanel.Layout.Row = currentRow;
             currentRow = currentRow + 1;
 
-            obj.AlgorithmTypeDropdown = uidropdown(paramLayout, ...
+            advancedGrid = uigridlayout(advancedPanel);
+            advancedGrid.RowHeight = repmat({'fit'}, 1, 20); % 20 rows for all advanced settings
+            advancedGrid.ColumnWidth = {'1x'};
+            advancedGrid.RowSpacing = 5;
+            advancedGrid.Padding = [15, 15, 15, 15];
+            advancedGrid.Scrollable = 'on';
+
+            advancedRow = 1;
+
+            % === Algorithm Selection ===
+            algorithmLabel = uilabel(advancedGrid, 'Text', 'Detection Algorithm:', 'FontWeight', 'bold');
+            algorithmLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
+
+            obj.AlgorithmTypeDropdown = uidropdown(advancedGrid, ...
                 'Items', differenceEstimationFunctions.valid_methods, ...
                 'Value', 'absdiff', ...
                 'Tooltip', 'Select detection algorithm or environment-optimized preset');
-            obj.AlgorithmTypeDropdown.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.AlgorithmTypeDropdown.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            % === Two-Dimensional Preset System ===
-            presetLabel = uilabel(paramLayout, 'Text', 'Change Detection Presets:', 'FontWeight', 'bold');
-            presetLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            % === Scale Presets ===
+            scaleLabel = uilabel(advancedGrid, 'Text', 'Spatial Scale Preset:', 'FontWeight', 'bold');
+            scaleLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            % Scale dimension
-            scaleLabel = uilabel(paramLayout, 'Text', 'Spatial Scale:');
-            scaleLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            obj.ScaleDropdown = uidropdown(paramLayout, ...
+            obj.ScaleDropdown = uidropdown(advancedGrid, ...
                 'Items', {'Custom', 'small', 'medium', 'large'}, ...
                 'Value', 'Custom', ...
                 'Tooltip', 'Select spatial scale of changes');
-            obj.ScaleDropdown.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.ScaleDropdown.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            % === Custom Parameter Controls ===
-            customLabel = uilabel(paramLayout, 'Text', 'Custom Parameters:', 'FontWeight', 'bold');
-            customLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            % === Temporal Processing ===
+            tempProcessLabel = uilabel(advancedGrid, 'Text', 'Temporal Processing:', 'FontWeight', 'bold');
+            tempProcessLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            % Temporal processing (independent control)
-            tempProcessLabel = uilabel(paramLayout, 'Text', 'Temporal Processing:');
-            tempProcessLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            obj.TemporalFilterDropdown = uidropdown(paramLayout, ...
+            obj.TemporalFilterDropdown = uidropdown(advancedGrid, ...
                 'Items', {'none', 'fast', 'medium', 'slow'}, ...
                 'Value', 'none', ...
                 'Tooltip', 'Apply temporal processing (independent of other parameters)');
-            obj.TemporalFilterDropdown.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.TemporalFilterDropdown.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            % === Parameter Sliders ===
-            slidersLabel = uilabel(paramLayout, 'Text', 'Detection Parameters:', 'FontWeight', 'bold');
-            slidersLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            % === Manual Parameter Controls ===
+            manualLabel = uilabel(advancedGrid, 'Text', 'Manual Parameter Control:', 'FontWeight', 'bold');
+            manualLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
             % Threshold (percentage 0-100%)
-            obj.ThresholdLabel = uilabel(paramLayout, 'Text', 'Threshold: 20%');
-            obj.ThresholdLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.ThresholdLabel = uilabel(advancedGrid, 'Text', 'Threshold: 20%');
+            obj.ThresholdLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            obj.ThresholdSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_threshold, 'Value', 20, ...
+            obj.ThresholdSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_threshold, 'Value', 20, ...
                 'Tooltip', 'Detection threshold as percentage (1-100%)');
-            obj.ThresholdSlider.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.ThresholdSlider.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
             % Block Size (pixels 1-100)
-            obj.BlockSizeLabel = uilabel(paramLayout, 'Text', 'Block Size: 3 pixels');
-            obj.BlockSizeLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.BlockSizeLabel = uilabel(advancedGrid, 'Text', 'Block Size: 3 pixels');
+            obj.BlockSizeLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            obj.BlockSizeSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_blockSize, 'Value', 3, ...
+            obj.BlockSizeSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_blockSize, 'Value', 3, ...
                 'Tooltip', 'Block size in pixels (1-100)');
-            obj.BlockSizeSlider.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.BlockSizeSlider.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
             % Area Min (logarithmic scale - will be updated based on image size)
-            obj.AreaMinLabel = uilabel(paramLayout, 'Text', 'Min Area: 100 pixels');
-            obj.AreaMinLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.AreaMinLabel = uilabel(advancedGrid, 'Text', 'Min Area: 100 pixels');
+            obj.AreaMinLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            obj.AreaMinSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', 2, ...
+            obj.AreaMinSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', 2, ...
                 'Tooltip', 'Minimum change area (logarithmic scale: 1 pixel to 10% of image)');
-            obj.AreaMinSlider.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.AreaMinSlider.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
             % Area Max (logarithmic scale - will be updated based on image size)
-            obj.AreaMaxLabel = uilabel(paramLayout, 'Text', 'Max Area: 10000 pixels');
-            obj.AreaMaxLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
+            obj.AreaMaxLabel = uilabel(advancedGrid, 'Text', 'Max Area: 10000 pixels');
+            obj.AreaMaxLabel.Layout.Row = advancedRow;
+            advancedRow = advancedRow + 1;
 
-            obj.AreaMaxSlider = uislider(paramLayout, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', 4, ...
+            obj.AreaMaxSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', 4, ...
                 'Tooltip', 'Maximum change area (logarithmic scale: 10 pixels to 50% of image)');
-            obj.AreaMaxSlider.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            % === Action Buttons ===
-            buttonsLabel = uilabel(paramLayout, 'Text', 'Actions:', 'FontWeight', 'bold');
-            buttonsLabel.Layout.Row = currentRow;
-            currentRow = currentRow + 1;
-
-            obj.CalculateButton = uibutton(paramLayout, 'push', ...
-                'Text', 'Calculate Changes', ...
-                'BackgroundColor', [0.2, 0.6, 0.2]);
-            obj.CalculateButton.Layout.Row = currentRow;
+            obj.AreaMaxSlider.Layout.Row = advancedRow;
 
             % === VISUALIZATION TAB ===
             obj.visualizationTab = uitab(obj.controlTabGroup, 'Title', 'Visualization');
