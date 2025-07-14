@@ -16,6 +16,12 @@ classdef DifferenceView3 < handle
         AnalysisAxes    matlab.ui.control.UIAxes
         StatusTextArea  matlab.ui.control.TextArea
 
+        % control tabgroup
+        controlTabGroup matlab.ui.container.TabGroup
+        visualizationTab  matlab.ui.container.Tab
+        imageSelectionTab matlab.ui.container.Tab
+        parametersTab    matlab.ui.container.Tab
+
         % Unified algorithm/type dropdown and visualization controls
         EnvironmentPresetDropdown matlab.ui.control.DropDown
         AlgorithmTypeDropdown   matlab.ui.control.DropDown
@@ -112,6 +118,7 @@ classdef DifferenceView3 < handle
             if ~obj.App.dataLoaded
                 return
             end
+            obj.controlTabGroup.SelectedTab = obj.visualizationTab;
             % Called when new images are loaded - reset the view completely
             obj.currentMasks = [];
             obj.currentResults = [];
@@ -173,6 +180,7 @@ classdef DifferenceView3 < handle
 
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
+                obj.controlTabGroup.SelectedTab = obj.parametersTab;
                 obj.CalculateButton.Enable = 'on';
                 obj.ImagesCheckbox.Enable = 'on';
                 obj.ImagesCheckbox.Value = true;  % Enable and check by default
@@ -425,12 +433,14 @@ classdef DifferenceView3 < handle
             % Grid layout: [visualization area | control area]
 
             % Create control tab group in the right column
-            controlTabGroup = uitabgroup(obj.Grid);
-            controlTabGroup.Layout.Row = 1;
-            controlTabGroup.Layout.Column = 2;            % === IMAGE SELECTION TAB (like DifferenceView) ===
-            imageSelectionTab = uitab(controlTabGroup, 'Title', 'Image Selection');
+            obj.controlTabGroup = uitabgroup(obj.Grid);
+            obj.controlTabGroup.Layout.Row = 1;
+            obj.controlTabGroup.Layout.Column = 2;
 
-            imageLayout = uigridlayout(imageSelectionTab);
+            % === IMAGE SELECTION TAB (like DifferenceView) ===
+            obj.imageSelectionTab = uitab(obj.controlTabGroup, 'Title', 'Image Selection');
+
+            imageLayout = uigridlayout(obj.imageSelectionTab);
             imageLayout.RowHeight = {'fit', 'fit', '1x', 'fit'};
             imageLayout.ColumnWidth = {'1x'};
             imageLayout.RowSpacing = 5;
@@ -476,9 +486,9 @@ classdef DifferenceView3 < handle
             obj.ClearButton.Layout.Row = 4;
 
             % === PARAMETERS TAB ===
-            parametersTab = uitab(controlTabGroup, 'Title', 'Parameters');
+            obj.parametersTab = uitab(obj.controlTabGroup, 'Title', 'Parameters');
 
-            paramLayout = uigridlayout(parametersTab);
+            paramLayout = uigridlayout(obj.parametersTab);
             paramLayout.RowHeight = repmat({'fit'}, 1, 27); % Increased from 25 to 27 rows for environment preset controls
             paramLayout.ColumnWidth = {'1x'};
             paramLayout.RowSpacing = 5;
@@ -601,9 +611,10 @@ classdef DifferenceView3 < handle
             obj.CalculateButton.Layout.Row = currentRow;
 
             % === VISUALIZATION TAB ===
-            visualizationTab = uitab(controlTabGroup, 'Title', 'Visualization');
+            obj.visualizationTab = uitab(obj.controlTabGroup, 'Title', 'Visualization');
+            obj.controlTabGroup.SelectedTab = obj.visualizationTab;
 
-            visualLayout = uigridlayout(visualizationTab);
+            visualLayout = uigridlayout(obj.visualizationTab);
             visualLayout.RowHeight = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'};
             visualLayout.ColumnWidth = {'1x'};
             visualLayout.RowSpacing = 5;
@@ -618,7 +629,7 @@ classdef DifferenceView3 < handle
 
             obj.VisualizationDropdown = uidropdown(visualLayout, ...
                 'Items', {'Individual', 'Combined'}, ...
-                'Value', 'Combined', ...
+                'Value', 'Individual', ...
                 'Tooltip', 'Select Individual (slider-based) or Combined visualization');
             obj.VisualizationDropdown.Layout.Row = currentRow;
             currentRow = currentRow + 1;
@@ -1012,9 +1023,6 @@ classdef DifferenceView3 < handle
                 % Setup mask navigation
                 if ~isempty(obj.currentMasks)
                     % Update visualization
-                    obj.updateVisualization();
-                    obj.updateAnalysisTab();
-
                     % Provide detailed status
                     usePresetInfo = {};
                     if ~strcmp(scale, 'Custom'), usePresetInfo{end+1} = sprintf('scale:%s', scale); end
@@ -1031,8 +1039,12 @@ classdef DifferenceView3 < handle
                 else
                     obj.updateStatus('No changes detected with current parameters');
                 end
+                % update view
                 obj.CalculateButton.Enable = 'on';
+                obj.VisualizationDropdown.Value = 'Combined';
+                obj.onVisualizationChanged();
                 obj.update();
+                obj.updateAnalysisTab();
             catch exception
                 obj.updateStatus(['Calculation error: ' exception.message]);
                 obj.currentMasks = {};
@@ -1097,6 +1109,9 @@ classdef DifferenceView3 < handle
         end
 
         function updateVisualization(obj)
+            if ~obj.App.dataLoaded
+                return
+            end
             obj.clearAxes(obj.MainAxes);
             visualizationType = obj.VisualizationDropdown.Value;
             switch visualizationType
