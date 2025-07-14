@@ -16,10 +16,15 @@ classdef calcOverlay < handle
         transforms  %% transforms which align all images in particular calculation
         groups      %% one cell per group with the ids of the images
         g       %% Graph how the images are connected based on the results
-        
+
         % precomputed warp
         warpedImages
         warpedMasks
+
+        % Cell array of 4D image stacks for efficient blending, one stack per group
+        % imageStack{groupIdx} = (H x W x C x N) array for group groupIdx
+        imageStack
+        groupOverlay
 
         % further public properties
         % e.g. parameters for algorithm
@@ -48,82 +53,95 @@ classdef calcOverlay < handle
                 case 'graph'
                     obj.homographieGraphBased(dispFunction);
             end
-            
+            obj.groupOverlay = cell(1, numel(obj.groups));  % Initialize group overlays
             obj.warp();
             obj.resultAvailable = true;
         end
-        function obj = setProperties(obj)
+        function overlay = getGroupOverlay(obj, group)
+            if ~obj.resultAvailable
+                overlay = [];  % No result available yet
+                return
+            end
+            if nargin < 2
+                group = 1;  % Default to first group if not specified
+            end
+            if group > numel(obj.groups)
+                overlay = [];  % Invalid group index
+                return
+            end
+            if isempty(obj.groupOverlay{group})
+                indices = obj.groups{group};
+                obj.groupOverlay{group} = obj.createOverlay(indices, group);
+            end
+            overlay = obj.groupOverlay{group};
         end
-        function overlay = createOverlay(obj, idxs)
-            disp("overlay")
 
-            if isempty(idxs)
+        function overlay = createOverlay(obj, indices, group)
+            if nargin < 3
+                group = 'All';  % Default to first group if not specified
+            end
+            disp("overlay")
+            if isempty(indices)
                 overlay = [];
-                return;
+                return
+            end
+            % check whether overlay was already calculated
+            if ~obj.resultAvailable
+                % Initialize overlay with first image
+                overlay = im2double(obj.imageArray{indices(1)}.data);
+                % Add remaining images
+                for i = 2:length(indices)
+                    idx = indices(i);
+                    overlay = overlay + im2double(obj.imageArray{idx}.data);
+                end
+                % Average all accumulated images
+                overlay = overlay ./ length(indices);
+                overlay = im2uint8(overlay);
+                return
             end
 
-            % Only proceed if we have valid previous data
-            if isempty(obj.lastIndices)
-                % No warping previously done — use raw image data directly
-                selectedImages = obj.imageArray(idxs);
-
-                % Assume images are all same size; use the first as size reference
-                [H, W, ~] = size(selectedImages{1}.data);
-                overlay = zeros(H, W, 3, 'double');
-                alphaMaskSum = zeros(H, W);
-                alpha = 0.5;
-        
-                for i = 1:length(selectedImages)
-                    img = im2double(selectedImages{i}.data);
-                    mask = true(H, W);  % full mask, no warping
-                    
-                    overlay = overlay + img .* alpha .* cat(3, mask, mask, mask);
-                    alphaMaskSum = alphaMaskSum + alpha .* mask;
+            if group == 'All'
+                for i = 1:numel(obj.groups)
+                    validSelection = intersect(indices, obj.groups{i});
+                    [~, localIdxs] = ismember(validSelection, obj.groups{i});
+                    if isempty(localIdxs)
+                        continue;  % Skip empty groups
+                    end
+                    if i == 1
+                        overlay = sum(obj.imageStack{i}(:,:,:,localIdxs), 4);  % Initialize with first group
+                    else
+                        overlay = overlay + sum(obj.imageStack{i}(:,:,:,localIdxs), 4);  % Sum across all groups
+                    end
                 end
             else
-                            
-                % Only keep indices that are were part of last calculation
-                validSelection = intersect(idxs, obj.lastIndices);
-                % transform to local indices matching filtered images array
-                [~, localIdxs] = ismember(validSelection, obj.lastIndices);
-    
-                % Initialize overlay and alpha mask sum
-                [H, W, ~] = size(obj.warpedImages{1});
-                overlay = zeros(H, W, 3, 'double');
-                alphaMaskSum = zeros(H, W);
-                alpha = 0.5;
-    
-                for i = 1:length(obj.lastIndices)
-                    if ~ismember(i, localIdxs)
-                        continue;
-                    end
-    
-                    mask = obj.warpedMasks{i};
-                    overlay = overlay + obj.warpedImages{i} .* alpha .* cat(3, mask, mask, mask);
-                    alphaMaskSum = alphaMaskSum + alpha .* mask;
-                end
+                validSelection = intersect(indices, obj.groups{group});
+                [~, localIdxs] = ismember(validSelection, obj.groups{group});
+                disp(group)
+                disp(size(obj.imageStack{group}))
+                disp(validSelection)
+                disp(localIdxs)
+                overlay = sum(obj.imageStack{group}(:,:,:,localIdxs), 4);  % Sum across the 4th dimension (N images in group)
             end
-            % Normalize and convert
-            alphaMaskSum(alphaMaskSum == 0) = 1;
-            overlay = overlay ./ cat(3, alphaMaskSum, alphaMaskSum, alphaMaskSum);
-            overlay = im2uint8(overlay);
+            overlay = overlay ./ length(validSelection);  % Average the sum
         end
+
         function scoreMatrix = createScoreConfusion(obj)
             scoreMatrix = obj.scoreMatrix;  % Return the score matrix for further analysis
             scoreMatrix(~isfinite(scoreMatrix)) = NaN;  % Replace Inf/-Inf with NaN
         end
+
         function plotReachabilityGraph(obj, ax)
             filteredImages = obj.imageArray(obj.lastIndices);
             transformImageIDs = cellfun(@(im) im.id, filteredImages);
-        
+
             % Determine identity transformation (tolerance for floating-point)
             isIdentity = cellfun(@(T) norm(T - eye(3), 'fro') < 1e-10, obj.transforms);
             identityIDs = transformImageIDs(isIdentity);  % datetime array
-        
+
             % Create logical mask for graph nodes that match identity transforms
             graphNodeIDs = obj.g.Nodes.Name;  % datetime array
             isIdentityNode = ismember(graphNodeIDs, identityIDs);  % logical array
-        
+
             % Plot graph
             if numedges(obj.g) > 0
                 % Plot with edge labels if edges exist
@@ -137,10 +155,10 @@ classdef calcOverlay < handle
                     'Layout', 'force', ...
                     'NodeLabel', obj.g.Nodes.Name);
             end
-        
+
             % Apply colors: 1 for false (blue), 2 for true (red)
             p.NodeCData = double(isIdentityNode) + 1;
-        
+
             % Title
             title(ax, 'Clustered Reachability Graph with Edge Weights');
         end
@@ -156,7 +174,7 @@ classdef calcOverlay < handle
             n = numel(obj.lastOutput);
             obj.scoreMatrix = inf(n+1);  % default to inf or NaN
             obj.scoreMatrix(1:n+2:end) = 0;  % diagonal is 0 (image vs itself)
-        
+
             % Fill in scores from rel_info_list
             for i = 1:n
                 score = obj.lastOutput{i}.score;
@@ -178,7 +196,7 @@ classdef calcOverlay < handle
             end
 
             obj.g = estimateHomographiesSet.buildUndirectedGraph(ids(1:end-1), ids(2:end), scores);
-        
+
             % --- Set Groups (cell with one element: lastIndices) ---
             obj.groups = {obj.lastIndices};
         end
@@ -186,13 +204,13 @@ classdef calcOverlay < handle
         function homographieGraphBased(obj, dispFunction)
             filteredImages = obj.imageArray(obj.lastIndices);
             [tr, gr, obj.scoreMatrix, obj.g] = estimateHomographiesSet.estimateHomographiesGraphBased(filteredImages, dispFunction);
-            
+
             imageIds = cellfun(@(im) im.id, filteredImages);
             transformKeys = tr.keys;
             obj.transforms = cell(1, length(filteredImages));
             % Map each key to the index in imageIds
             [found, idxs] = ismember(string(transformKeys), string(imageIds));
-            
+
             for k = 1:numel(transformKeys)
                 if found(k)
                     obj.transforms{idxs(k)} = tr(transformKeys{k});
@@ -219,7 +237,7 @@ classdef calcOverlay < handle
             numTransforms = length(obj.lastIndices);
             % Calculate bounding box that fits all warped images
             allCorners = [];
-            for i = 1:numTransforms               
+            for i = 1:numTransforms
                 img = filteredImages{i}.data;
                 [h, w, ~] = size(img);
                 corners = [1, 1; w, 1; w, h; 1, h];
@@ -231,23 +249,47 @@ classdef calcOverlay < handle
             xMax = ceil(max(allCorners(:,1)));
             yMin = floor(min(allCorners(:,2)));
             yMax = ceil(max(allCorners(:,2)));
-    
+
             width = xMax - xMin + 1;
             height = yMax - yMin + 1;
-            
+
             % get reference for image
             ref = imref2d([height, width], [xMin, xMax], [yMin, yMax]);
 
             obj.warpedImages = cell(1, numTransforms);
             obj.warpedMasks = cell(1, numTransforms);
-            
+
             % warp
             for i = 1:numTransforms
                 img = filteredImages{i}.data;
                 tform = projective2d(obj.transforms{i});
                 warpedImg = imwarp(img, tform, 'OutputView', ref);
-                obj.warpedMasks{i} = imwarp(true(size(img,1), size(img,2)), tform, 'OutputView', ref);                
+                obj.warpedMasks{i} = imwarp(true(size(img,1), size(img,2)), tform, 'OutputView', ref);
                 obj.warpedImages{i} = im2double(warpedImg);
+            end
+
+            % Create 4D image stack for efficient blending
+            obj.createImageStack();
+        end
+
+        function createImageStack(obj)
+            % Create 4D image stack from warpedImages for efficient blending
+            if isempty(obj.warpedImages)
+                obj.imageStack = [];
+                return;
+            end
+
+            % Get dimensions from first image
+            [H, W, C] = size(obj.warpedImages{1});
+
+            numGroups = numel(obj.groups);
+            obj.imageStack = cell(1, numGroups);
+            for k = 1: numGroups
+                groupSize = length(obj.groups{k});
+                obj.imageStack{k} = zeros(H, W, C, groupSize, 'like', obj.warpedImages{1});
+                for i = 1:groupSize
+                    obj.imageStack{k}(:,:,:,i) = obj.warpedImages{obj.groups{k}(i)};
+                end
             end
         end
     end

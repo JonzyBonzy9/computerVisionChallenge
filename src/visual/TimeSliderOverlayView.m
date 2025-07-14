@@ -17,6 +17,7 @@ classdef TimeSliderOverlayView < handle
         imageStack
         maskStack
         sigma
+        group = 1;
     end
 
     methods
@@ -77,7 +78,7 @@ classdef TimeSliderOverlayView < handle
 
             lbl = uilabel(controlLayout, 'Text', 'Select Group:');
             lbl.Layout.Row = 1;
-            
+
             obj.GroupDropdown = uidropdown(controlLayout, ...
                 'Items', {}, ...               % initially empty
                 'Tooltip', 'Select a group');
@@ -123,7 +124,7 @@ classdef TimeSliderOverlayView < handle
 
             % update view if data is available
             if obj.dataAvailable
-                obj.update()                
+                obj.update()
             end
         end
 
@@ -131,59 +132,21 @@ classdef TimeSliderOverlayView < handle
             obj.Grid.Visible = 'off';
         end
 
-        function update(obj)            
-            % get data into efficient image stack for images
-            %disp(obj.App.OverlayClass.resultAvailable);
+        function update(obj)
             if obj.App.OverlayClass.resultAvailable
-                obj.updateGroups(obj.App.OverlayClass.groups);
-                selectedGroupName = obj.GroupDropdown.Value;
-                selectedGroupIndex = str2double(selectedGroupName);
-
-                indices = obj.App.OverlayClass.groups{selectedGroupIndex};
-                filteredImages = obj.App.OverlayClass.warpedImages(indices);
-                obj.imageStack = cat(4, filteredImages{:});
                 obj.imCheck.Enable = 'on';
-                obj.imCheck.Value = true;
-                % get data into efficient image stack for masks
-                %disp("results available?")
-                %disp(obj.App.DifferenceClass.resultAvailable)
-                if obj.App.DifferenceClass.resultAvailable
-                    maskList = cell(1, numel(indices));
-                    imgSize = size(obj.App.OverlayClass.warpedImages{1});
-                    emptyMask = zeros(imgSize(1), imgSize(2));
-                    emptyMask = cat(3, emptyMask, emptyMask, emptyMask);
-                    for k = 1:numel(indices)
-                        currentIndex = indices(k);
-                        match = ismember(obj.App.DifferenceClass.lastIndices, currentIndex);
-                        if match(end)
-                            maskList{k} = emptyMask;
-                        elseif any(match)
-                            mask = obj.App.DifferenceClass.differenceMasks{find(match, 1)};
-                            maskList{k} = cat(3, mask, zeros(size(mask)), zeros(size(mask)));
-                        elseif k==1
-                            maskList{k} = emptyMask;
-                        else
-                            maskList{k} = maskList{k-1};
-                        end
-                    end
-                    obj.maskStack = cat(4, maskList{:});
-                    obj.diffCheck.Enable = 'on';
-                    obj.diffCheck.Value = true;
-                else
-                    obj.diffCheck.Enable = 'off';
-                    obj.diffCheck.Value = false;
-                end
+                obj.imCheck.Value = true;  % Enable and check by default
             else
-                images = cellfun(@(im) im.data, obj.App.OverlayClass.imageArray, 'UniformOutput',false);
-                obj.imageStack = cat(4, images{:});
                 obj.imCheck.Enable = 'off';
-                obj.imCheck.Value = true;
-            end            
-            % move data to gpu if available
-            if gpuDeviceCount > 0
-                obj.imageStack = gpuArray(obj.imageStack);
-                obj.maskStack = gpuArray(obj.maskStack);
             end
+            if obj.App.DifferenceClass.resultAvailable
+                obj.diffCheck.Enable = 'on';
+                obj.diffCheck.Value = true;  % Enable and check by default
+            else
+                obj.diffCheck.Enable = 'off';
+                obj.diffCheck.Value = false;  % Disable and uncheck
+            end
+            obj.updateGroups(obj.App.OverlayClass.groups);
             obj.updateSlider()
             obj.blendImages()
         end
@@ -196,41 +159,66 @@ classdef TimeSliderOverlayView < handle
             if ~obj.App.OverlayClass.resultAvailable
                 % if not, show raw images
                 value = round(value);
-                imshow(obj.imageStack(:,:,:,value), 'Parent', obj.Axes);
+
+                imshow(obj.App.OverlayClass.imageArray{value}.data, 'Parent', obj.Axes);
                 obj.Slider.Value = value;
             else
                 % show warped images
-                N = size(obj.imageStack, 4);                
-            
+                N = size(obj.App.OverlayClass.imageStack{obj.group}, 4);
+
                 % Compute Gaussian weights centered at slider value
                 x = 1:N;
                 weights = exp(-0.5 * ((x - value) / obj.sigma).^2);
                 weights = weights / sum(weights);  % Normalize
-    
+
                 % Blend images
-                blended = zeros(size(obj.imageStack,1), size(obj.imageStack,2), size(obj.imageStack,3), 'like', obj.imageStack);
+                empty = zeros(size(obj.App.OverlayClass.imageStack{obj.group},1), size(obj.App.OverlayClass.imageStack{obj.group},2), size(obj.App.OverlayClass.imageStack{obj.group},3), 'like', obj.App.OverlayClass.imageStack{obj.group});
+
+                % Always start by clearing the axes
+                cla(obj.Axes);
+
+                % Display blended images first (if checkbox is selected)
+                blended = empty;
                 if obj.imCheck.Value
                     for i = 1:N
-                        blended = blended + weights(i) * obj.imageStack(:,:,:,i);
+                        blended = blended + weights(i) * obj.App.OverlayClass.imageStack{obj.group}(:,:,:,i);
                     end
                 end
+
+                % Overlay the mask on top (if checkbox is selected)
+                maskBlended = empty(:,:,1);  % Initialize maskBlended as a single channel
                 if obj.diffCheck.Value
+                    maskCount = 1;
+                    lastMaskIndice = obj.App.DifferenceClass.lastIndices(end);
                     for i = 1:N
-                        blended = blended + weights(i) * obj.maskStack(:,:,:,i);
+                        indice = obj.App.OverlayClass.groups{obj.group}(i);
+                        maskIndice = obj.App.DifferenceClass.lastIndices(maskCount);
+                        if  maskIndice == indice && ~(maskIndice == lastMaskIndice)
+                            maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount);
+                            maskCount = maskCount + 1;
+                        elseif indice < lastMaskIndice && maskCount ~= 1
+                            maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount-1);
+                        else
+                            % No mask to add for this image (stays zero)
+                        end
                     end
+                    [H, W] = size(maskBlended);
+                    redOverlay = zeros(H, W, 3);
+                    redOverlay(:,:,1) = maskBlended;
+                    maskBlended = redOverlay;
                 end
-            
-                % Display
+                blended = blended + maskBlended;
                 imshow(blended, 'Parent', obj.Axes);
+
+                % Display
+
             end
         end
-        function updateSlider(obj)            
+        function updateSlider(obj)
             if ~obj.App.OverlayClass.resultAvailable
                 indices = 1:size(obj.imageStack, 4);
             else
-                selectedGroupName = obj.GroupDropdown.Value;
-                group = str2double(selectedGroupName);
-                indices = obj.App.OverlayClass.groups{group};
+                indices = obj.App.OverlayClass.groups{obj.group};
             end
 
             dates = cellfun(@(s) string(s.id), obj.App.OverlayClass.imageArray(indices));
@@ -242,26 +230,27 @@ classdef TimeSliderOverlayView < handle
         end
         function updateGroups(obj, groups)
             % groups: cell array of vectors with indices of items in each group
-            
+
             numGroups = numel(groups);
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
-            
+
             % Update dropdown items
             obj.GroupDropdown.Items = groupNames;
-            
+
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
         end
         function onGroupSelected(obj)
             if isempty(obj.App.OverlayClass.groups)
                 return
-            end            
+            end
+            obj.group = str2double(obj.GroupDropdown.Value);
             obj.update()
         end
         function updateSigma(obj)
             % Convert log slider value back to σ
             obj.sigma = 10^(obj.GaussSlider.Value);
-        
+
             % Now use sigma in your blending function
             obj.blendImages()
         end
@@ -270,6 +259,6 @@ classdef TimeSliderOverlayView < handle
     methods (Static)
         function name = getName()
             name = 'TimeSlider';
-        end        
+        end
     end
 end
