@@ -1,6 +1,6 @@
 classdef TimeSliderOverlayView < handle
     properties (Access = private)
-        App             matlab.apps.AppBase
+        App           matlab.apps.AppBase
         dataAvailable
         Grid          matlab.ui.container.GridLayout
         Grid2         matlab.ui.container.GridLayout
@@ -9,8 +9,8 @@ classdef TimeSliderOverlayView < handle
         SliderLabel   matlab.ui.control.Label
         Slider        matlab.ui.control.Slider
         GaussSlider   matlab.ui.control.Slider
-        imCheck matlab.ui.control.CheckBox
-        diffCheck matlab.ui.control.CheckBox
+        imCheck       matlab.ui.control.CheckBox
+        diffCheck     matlab.ui.control.CheckBox
         controlPanel
         GroupDropdown
         ApplyGroupButton
@@ -37,7 +37,6 @@ classdef TimeSliderOverlayView < handle
             obj.Grid2.ColumnWidth = {'1x', 'fit'};
             obj.Grid2.RowHeight = {'1x'};
             obj.Grid2.Layout.Row = 1;
-
 
             % Create Image
             obj.Axes = uiaxes(obj.Grid2);
@@ -120,6 +119,7 @@ classdef TimeSliderOverlayView < handle
         end
 
         function show(obj)
+            % Show the main grid
             obj.Grid.Visible = 'on';
 
             % update view if data is available
@@ -132,7 +132,11 @@ classdef TimeSliderOverlayView < handle
             obj.Grid.Visible = 'off';
         end
 
+        % Update the view
+        % This method is called to refresh the view when data changes
+        % or when the user interacts with the UI elements.
         function update(obj)
+
             if obj.App.OverlayClass.resultAvailable
                 obj.imCheck.Enable = 'on';
                 obj.imCheck.Value = true;  % Enable and check by default
@@ -153,6 +157,9 @@ classdef TimeSliderOverlayView < handle
     end
 
     methods (Access = private)
+        % Blend images based on the slider value and sigma
+        % This method computes a weighted average of the images in the stack
+        % based on the slider value and applies a Gaussian weighting.
         function blendImages(obj)
             value = obj.Slider.Value;
             % check whether overlay data is available
@@ -214,6 +221,10 @@ classdef TimeSliderOverlayView < handle
 
             end
         end
+
+        % Update the slider based on the current image stack
+        % This method sets the slider limits and ticks based on the number of images
+        % in the current image stack. It also updates the slider value to the first image.
         function updateSlider(obj)
             if ~obj.App.OverlayClass.resultAvailable
                 indices = 1:size(obj.imageStack, 4);
@@ -228,6 +239,8 @@ classdef TimeSliderOverlayView < handle
             obj.Slider.MajorTickLabels = dates;
             obj.Slider.Value = 1;
         end
+
+        % Update the group dropdown based on the available groups
         function updateGroups(obj, groups)
             % groups: cell array of vectors with indices of items in each group
 
@@ -240,6 +253,8 @@ classdef TimeSliderOverlayView < handle
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
         end
+
+        % Callback for when a group is selected from the dropdown
         function onGroupSelected(obj)
             if isempty(obj.App.OverlayClass.groups)
                 return
@@ -247,6 +262,8 @@ classdef TimeSliderOverlayView < handle
             obj.group = str2double(obj.GroupDropdown.Value);
             obj.update()
         end
+
+        % Update the sigma value based on the Gaussian slider
         function updateSigma(obj)
             % Convert log slider value back to σ
             obj.sigma = 10^(obj.GaussSlider.Value);

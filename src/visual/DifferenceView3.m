@@ -17,15 +17,15 @@ classdef DifferenceView3 < handle
         StatusTextArea  matlab.ui.control.TextArea
 
         % control tabgroup
-        controlTabGroup matlab.ui.container.TabGroup
-        visualizationTab  matlab.ui.container.Tab
-        imageSelectionTab matlab.ui.container.Tab
-        parametersTab    matlab.ui.container.Tab
+        controlTabGroup     matlab.ui.container.TabGroup
+        visualizationTab    matlab.ui.container.Tab
+        imageSelectionTab   matlab.ui.container.Tab
+        parametersTab       matlab.ui.container.Tab
 
         % Unified algorithm/type dropdown and visualization controls
         EnvironmentPresetDropdown matlab.ui.control.DropDown
-        AlgorithmTypeDropdown   matlab.ui.control.DropDown
         IndividualModeButton    matlab.ui.control.StateButton
+        AlgorithmTypeDropdown   matlab.ui.control.DropDown
         CombinedModeButton      matlab.ui.control.StateButton
         CombinationDropdown     matlab.ui.control.DropDown
 
@@ -514,7 +514,7 @@ classdef DifferenceView3 < handle
 
             obj.EnvironmentPresetDropdown = uidropdown(presetGrid, ...
                 'Items', differenceEstimationFunctions.valid_change_types, ...
-                'Value', 'fast', ...
+                'Value', 'urban', ...
                 'Tooltip', 'Select environment-optimized preset configuration', ...
                 'FontSize', 11);
             obj.EnvironmentPresetDropdown.Layout.Row = 1;

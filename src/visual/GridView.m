@@ -2,8 +2,8 @@ classdef GridView < handle
     properties (Access = private)
         App             matlab.apps.AppBase
         dataAvailable
-        Grid          matlab.ui.container.GridLayout
-        UIAxes        matlab.ui.control.UIAxes
+        Grid            matlab.ui.container.GridLayout
+        UIAxes          matlab.ui.control.UIAxes
     end
 
     methods

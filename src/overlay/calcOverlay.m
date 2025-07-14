@@ -15,7 +15,7 @@ classdef calcOverlay < handle
         % calculated transforms for overlay
         transforms  %% transforms which align all images in particular calculation
         groups      %% one cell per group with the ids of the images
-        g       %% Graph how the images are connected based on the results
+        g           %% Graph how the images are connected based on the results
 
         % precomputed warp
         warpedImages
