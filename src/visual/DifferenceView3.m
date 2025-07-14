@@ -178,7 +178,6 @@ classdef DifferenceView3 < handle
             if ~obj.App.dataLoaded
                 return
             end
-
             disp("update")
 
             % updated after overlay is calculated
@@ -197,7 +196,6 @@ classdef DifferenceView3 < handle
 
             % dependent on whether difference data is available
             if obj.App.DifferenceClass.resultAvailable
-                disp("MaskCheck")
                 obj.MasksCheckbox.Enable = 'on';
                 obj.MasksCheckbox.Value = true;  % Enable and check by default
             else
@@ -1041,11 +1039,8 @@ classdef DifferenceView3 < handle
                     % Convert logarithmic area values to absolute pixel counts
                     absoluteAreaMin = obj.logAreaToPixels(obj.AreaMinSlider.Value);
                     absoluteAreaMax = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
-                    disp(absoluteAreaMin);
-                    disp(absoluteAreaMax);
 
                     % Map algorithmType to type for calculateAdvanced
-                    disp(algorithmType);
                     if contains(algorithmType, 'urban')
                         envType = 'urban';
                     elseif contains(algorithmType, 'natural')
@@ -1053,7 +1048,6 @@ classdef DifferenceView3 < handle
                     else
                         envType = algorithmType;  % Default for basic algorithms
                     end
-                    disp(envType);
 
                     % Use calculateAdvanced method
                     obj.currentMasks = obj.App.DifferenceClass.calculateAdvanced(...
@@ -1144,13 +1138,10 @@ classdef DifferenceView3 < handle
             groupIndices = obj.App.OverlayClass.groups{obj.group};
             % Loop through all checkboxes in the grid and update selection
             for k = 1:numel(obj.Checkboxes)
-                disp(k)
                 if ismember(k, groupIndices)
-                    disp("in")
                     obj.Checkboxes(k).Value = true;
                     obj.Checkboxes(k).Enable = 'on';
                 else
-                    disp("out")
                     obj.Checkboxes(k).Value = false;
                     obj.Checkboxes(k).Enable = 'off';
                 end
@@ -1272,14 +1263,24 @@ classdef DifferenceView3 < handle
             % Display indexed result with colormap
             if any(combinedAlpha(:) > 0)
                 % Create colormap with distinct colors for each time period
-                cmap = lines(numMasks);
-                colormap(axes, cmap);
+                if numMasks > 1
+                    cmap = lines(numMasks);
+                    colormap(axes, cmap);
+                    overlayHandle = imagesc(axes, indexedOverlay, [1, numMasks]);
+                else
+                    % Handle single mask case
+                    colormap(axes, 'hot');
+                    overlayHandle = imagesc(axes, indexedOverlay);
+                end
 
-                overlayHandle = imagesc(axes, indexedOverlay, [1, numMasks]);
                 set(overlayHandle, 'AlphaData', 0.35 * combinedAlpha);
 
                 % Create custom colorbar with date labels
-                obj.createTemporalColorbar(axes, numMasks);
+                if numMasks > 1
+                    obj.createTemporalColorbar(axes, numMasks);
+                else
+                    colorbar(axes);
+                end
             end
 
             title(axes, 'Temporal Change Overlay');
@@ -1302,7 +1303,15 @@ classdef DifferenceView3 < handle
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
-            clim(axes, [0, max(combinedMask(:))]);  % Set color limits to max value
+
+            % Set color limits, ensuring the second value is greater than the first
+            maxVal = max(combinedMask(:));
+            if maxVal > 0
+                clim(axes, [0, maxVal]);
+            else
+                clim(axes, [0, 1]);  % Default range when no changes detected
+            end
+
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Sum)');
@@ -1326,7 +1335,15 @@ classdef DifferenceView3 < handle
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
-            clim(axes, [0, max(combinedMask(:))]);
+
+            % Set color limits, ensuring the second value is greater than the first
+            maxVal = max(combinedMask(:));
+            if maxVal > 0
+                clim(axes, [0, maxVal]);
+            else
+                clim(axes, [0, 1]);  % Default range when no changes detected
+            end
+
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Average)');
@@ -1350,7 +1367,15 @@ classdef DifferenceView3 < handle
 
             h = imagesc(axes, combinedMask);
             set(h, 'AlphaData', combinedMask > 0);
-            clim(axes, [0, max(combinedMask(:))]);
+
+            % Set color limits, ensuring the second value is greater than the first
+            maxVal = max(combinedMask(:));
+            if maxVal > 0
+                clim(axes, [0, maxVal]);
+            else
+                clim(axes, [0, 1]);  % Default range when no changes detected
+            end
+
             colormap(axes, 'gray');
             colorbar(axes);
             title(axes, 'Combined Changes (Maximum)');
@@ -1358,13 +1383,11 @@ classdef DifferenceView3 < handle
         end
 
         function blendImages(obj, axes, group)
-            disp(group)
             value = obj.MaskSlider.Value;
             % check whether overlay data is available
             if ~obj.App.OverlayClass.resultAvailable
                 % if not, show raw images
                 value = round(value);
-                disp(value);
                 imshow(obj.App.OverlayClass.imageArray{value}.data, 'Parent', axes);
                 obj.MaskSlider.Value = value;
             else
@@ -1864,7 +1887,6 @@ classdef DifferenceView3 < handle
         end
         function clearAxes(~, axes)
             cb = findall(axes, 'Type', 'ColorBar');
-            disp(cb)
             delete(cb);
 
             % Now clear the axes as usual

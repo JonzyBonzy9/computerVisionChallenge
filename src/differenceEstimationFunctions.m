@@ -53,10 +53,19 @@ classdef differenceEstimationFunctions < handle
             obj.areaMin = areaMin;
             obj.areaMax = areaMax;
 
+            % Get filtered images and masks - FIXED: directly map selected indices
+            % Find positions of selected indices in overlay.lastIndices
+            [~, selectedPositions] = ismember(indices, obj.overlay.lastIndices);
 
-            isInSelection = ismember(obj.overlay.lastIndices, indices);
-            filteredImages = obj.overlay.warpedImages(isInSelection);
-            filteredMasks = obj.overlay.warpedMasks(isInSelection);
+            % Remove any zero positions (indices not found in overlay)
+            validPositions = selectedPositions(selectedPositions > 0);
+            if length(validPositions) ~= length(indices)
+                warning('Some selected indices were not found in overlay data');
+            end
+
+            % Extract only the specifically selected images and masks
+            filteredImages = obj.overlay.warpedImages(validPositions);
+            filteredMasks = obj.overlay.warpedMasks(validPositions);
 
             obj.differenceMasks = cell(1, length(filteredImages)-1);
 
@@ -581,10 +590,16 @@ classdef differenceEstimationFunctions < handle
 
             obj.lastIndices = indices;
 
-            % Get filtered images and masks
-            isInSelection = ismember(obj.overlay.lastIndices, indices);
-            filteredImages = obj.overlay.warpedImages(isInSelection);
-            filteredMasks = obj.overlay.warpedMasks(isInSelection);
+            % Get filtered images and masks - FIXED: directly map selected indices
+            % Find positions of selected indices in overlay.lastIndices
+            [~, selectedPositions] = ismember(indices, obj.overlay.lastIndices);
+
+            % Remove any zero positions (indices not found in overlay)
+            validPositions = selectedPositions(selectedPositions > 0);
+
+            % Extract only the specifically selected images and masks
+            filteredImages = obj.overlay.warpedImages(validPositions);
+            filteredMasks = obj.overlay.warpedMasks(validPositions);
 
             % === STEP 1: Apply Spatial Scale Dimension ===
             obj.blockSize = blockSize;
@@ -593,15 +608,11 @@ classdef differenceEstimationFunctions < handle
             obj.threshold = threshold;
 
             % === STEP 2: Determine Detection Method(s) based on Type ===
-            [detectionMethods, methodWeights] = obj.determineTypeParameters(type, filteredImages);
+            [detectionMethods, methodWeights] = obj.determineTypeParameters(type);
 
             % === STEP 3: Calculate initial masks for all image pairs ===
             rawMasks = cell(1, length(filteredImages)-1);
             combinedMasks = cell(1, length(filteredImages)-1);
-            disp(type)
-            disp(detectionMethods);
-            disp(obj.threshold);
-            disp(obj.blockSize);
 
             for i = 1:length(filteredImages)-1
                 I1 = filteredImages{i};
@@ -637,7 +648,6 @@ classdef differenceEstimationFunctions < handle
                         otherwise
                             error('Unknown method "%s"', currentMethod);
                     end
-
                     % Resize mask to match original image size
                     mask = imresize(mask, size(filteredMasks{i}), 'nearest');
                     pairMasks{methodIdx} = double(mask) * weight;
@@ -645,13 +655,14 @@ classdef differenceEstimationFunctions < handle
 
                 % Combine multiple methods if used
                 if length(pairMasks) == 1
-                    combinedMask = pairMasks{1} > 0.5;
+                    combinedMask = pairMasks{1};
                 else
                     % Weighted combination of methods
                     weightedSum = zeros(size(pairMasks{1}));
                     for methodIdx = 1:length(pairMasks)
                         weightedSum = weightedSum + pairMasks{methodIdx};
                     end
+                    % reapply boolean threshold
                     combinedMask = weightedSum > (sum(methodWeights) * 0.5);
                 end
 
@@ -674,7 +685,7 @@ classdef differenceEstimationFunctions < handle
             obj.resultAvailable = true;
         end
 
-        function [methods, methodWeights] = determineTypeParameters(obj, type, filteredImages)
+        function [methods, methodWeights] = determineTypeParameters(obj, type)
             % Determine detection methods and parameters based on environment type
 
             switch lower(type)
