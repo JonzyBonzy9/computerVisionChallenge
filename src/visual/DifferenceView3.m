@@ -17,16 +17,16 @@ classdef DifferenceView3 < handle
         StatusTextArea  matlab.ui.control.TextArea
 
         % control tabgroup
-        controlTabGroup matlab.ui.container.TabGroup
-        visualizationTab  matlab.ui.container.Tab
-        imageSelectionTab matlab.ui.container.Tab
-        parametersTab    matlab.ui.container.Tab
+        controlTabGroup     matlab.ui.container.TabGroup
+        visualizationTab    matlab.ui.container.Tab
+        imageSelectionTab   matlab.ui.container.Tab
+        parametersTab       matlab.ui.container.Tab
 
         % Unified algorithm/type dropdown and visualization controls
-        EnvironmentPresetDropdown matlab.ui.control.DropDown
-        AlgorithmTypeDropdown   matlab.ui.control.DropDown
-        VisualizationDropdown   matlab.ui.control.DropDown
-        CombinationDropdown     matlab.ui.control.DropDown
+        EnvironmentPresetDropdown   matlab.ui.control.DropDown
+        AlgorithmTypeDropdown       matlab.ui.control.DropDown
+        VisualizationDropdown       matlab.ui.control.DropDown
+        CombinationDropdown         matlab.ui.control.DropDown
 
         % Visualization display controls (like TimeSliderOverlay)
         ImagesCheckbox      matlab.ui.control.CheckBox

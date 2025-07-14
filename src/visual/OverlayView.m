@@ -5,7 +5,7 @@ classdef OverlayView < handle
 
         Grid            matlab.ui.container.GridLayout
         Axes            matlab.ui.control.UIAxes
-        GraphAxes            matlab.ui.control.UIAxes
+        GraphAxes       matlab.ui.control.UIAxes
         HeatmapPanel
         CheckboxGrid    matlab.ui.container.GridLayout
         Checkboxes      matlab.ui.control.CheckBox
@@ -127,11 +127,8 @@ classdef OverlayView < handle
             % Update panel
             disp("onImLoad")
             obj.dataAvailable = true;
-            %obj.controlPanel.Scrollable = 'off';
-            %obj.controlPanel.Scrollable = 'on';  % Toggle to re-check scroll need
             obj.reset();
             obj.updateCheckboxes();
-            %imshow(obj.App.OverlayClass.imageArray{1}.data, 'Parent', obj.Axes);
             disp("finished imload")
         end
 
@@ -234,6 +231,7 @@ classdef OverlayView < handle
         end
 
         function calculate(obj)
+            % Ensure checkboxes are valid
             try
                 selectedIndices = find(arrayfun(@(cb) cb.Value, obj.Checkboxes));
     
@@ -302,6 +300,7 @@ classdef OverlayView < handle
 
     methods (Access = private)
         function clearCheckboxes(obj)
+            % Check if checkboxes exist and are valid before accessing them
             if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
                 return;
             end
@@ -311,7 +310,9 @@ classdef OverlayView < handle
             obj.onCheckboxChanged();  % manually trigger visualization update
 
         end
+
         function allCheckboxes(obj)
+            % Check if checkboxes exist and are valid before accessing them
             if isempty(obj.Checkboxes) || ~all(isvalid(obj.Checkboxes))
                 return;
             end
@@ -340,6 +341,7 @@ classdef OverlayView < handle
                 cla(obj.Axes);  % Clear if overlay couldn't be created
             end
         end
+
         function updateGroups(obj, groups)
             % groups: cell array of vectors with indices of items in each group
 
@@ -352,7 +354,10 @@ classdef OverlayView < handle
             % Attach callback for dropdown selection change
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupSelected();
         end
+
         function onGroupSelected(obj)
+            % Check if groups are available and checkboxes are valid
+            % If no groups are defined, do nothing
             if isempty(obj.App.OverlayClass.groups)
                 return
             end
