@@ -2,19 +2,80 @@
 
 This is the README for our repo of the computer vision challenge in the summer term 2025.
 
-# data
-
-Put the Datasets folder into data folder like so: data/Datasets
-
 # matlab requirements
 
 MATLAB R2025a, Image Processing Toolbox, Computer Vision Toolbox
 
-Authors: Paul Jegen, Moritz Geissler, Martin Muenster, Jonah Driske, Öykü Şevketbeyoğlu
+# Authors: 
+Paul Jegen, Moritz Geissler, Martin Muenster, Jonah Driske, Öykü Şevketbeyoğlu
+
+# Description of the GUI
+Toolbar: 
+  - File: 
+    - Open: opens a dialog for the user to select a folder which contains datasets to be analyzed (supported file formats: xxx). 
+    - Quit: closes the app. 
+  - Settings:
+    - Help: opens a help file, which contains information similar to the readme file.
+   
+Menubar: 
+- Open button: opens a dialog for the user to select a folder which contains datasets to be analyzed (supported file formats: xxx).
+- No data/Calculate Overlay button: calculates the overlay of all pictures intersected with the neighbours. Necessary for all future proceedings.
+- Visualization: select which kind of visulaiztaion is desired (Overlay is initial). Switching between the visualizations during calculations is possible.
+
+Main view:
+- Overlay:
+  Left: the view depicts the loaded dataset interlaced with each other. Selective presentation is possible.
+  Center:
+    - Console: outputs progress and general calculation information.
+    - Condusion Matrix: depicts the condusion matrix between the selected pictures.
+    - Graph: depicts the clustered reachability graph with edge weights included.
+  Right: user interaction options
+  - Group: select group in order ot integrate selected pictures into groups. Use for quick A-B comparison between several picture sets.
+  - chechboxes of dates: select desired pictures to be included in the visualization.
+  - Clear all: clears all checkboxes.
+  - Select all: selects all checkboxes.
+  - Select algorithm: choose the desired algorithm for overlay calculations. Options: graph, successive
+  - Calculate Overlay: calculate the new overlay after parameters have been changed.
+ 
+- Difference:
+  Left:
+    - Main View: depicts the graphical represantation of differences in between selected pictures.
+    - Analysis:
+    - Console: outputs progress and general calculation information.
+  Right:user interaction options
+    - Image Selection: select images to be shown differences in.
+      - Groups: select active groupset. 
+      - Checkboxes: select pictures.
+      - Clear all: clears all checkboxes.
+    - Parameters:
+      - Environment Preset: select rough preset for different pictures. E.g. select "urban" for a dataset within a city. Options: urban,            natural, mixed
+      - Detection algorithm: select detection algorithm for differences. Results will vary depending on selection of algorithm.
+      - Custom Detection Presets: use these parameters to tune the behaviour in custom mode quickly. 
+        - Spatial Scale: Options: small, medium, large
+        - Temporal Processing: Options: fast, medium, slow
+      - Detection Parameters: fine tune the parameters for the specific edge case scenario
+
+
+# How to operate
+
+1.) start the app by running the main.m file. Alternatively: install the packaged cvApp.mltbx file and start it through the matlab app handler. 
+2.) the GUI will now show. The GUI is divided into different sections. On the very top of the app, there is the toolbar. Below the "File" tab there are the options: 
+  - Open: opens a dialog for the user to select a folder which contains datasets to be analyzed (supported file formats: xxx)
+  - Quit: closes the app
+
+Below the settings tab, a help button exists. Clicking the help button opens up a help site similar to the readme. 
+
+3.) For ease of quick use, the "open" button is provided in the main view as well. The working principal is equal to the open button below the file tab. 
+
+4.) Once a folder conatining the datasets was selected and the folder was loaded without any errors (a pop-up window would show), the user may proceed with using the app. As a first measure of action, some calculations are required. The user may start these calculatoins by clicking the "caluculate overlay" button. Inside the console visible in the "Overlay" view, the progress is submitted. 
+
+
+# data
+
+Put the Datasets folder into data folder like so: data/Datasets
 
 # GUI
 
-This includes a hint regarding the final packaging of the app. Provide an .mlappinstall file (includes all necessary files). Webapp will also be a part of it.
 
 # Further developing ideas
 
