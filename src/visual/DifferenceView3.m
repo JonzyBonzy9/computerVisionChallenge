@@ -178,7 +178,16 @@ classdef DifferenceView3 < handle
             if ~obj.App.dataLoaded
                 return
             end
-            disp("update")
+            disp("update diff view")
+
+            % dependent on whether difference data is available
+            if obj.App.DifferenceClass.resultAvailable
+                obj.MasksCheckbox.Enable = 'on';
+                obj.MasksCheckbox.Value = true;  % Enable and check by default
+            else
+                obj.MasksCheckbox.Enable = 'off';
+                obj.MasksCheckbox.Value = false;  % Disable and uncheck
+            end
 
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
@@ -194,14 +203,6 @@ classdef DifferenceView3 < handle
                 obj.updateGroups({});  % Clear groups if no results available
             end
 
-            % dependent on whether difference data is available
-            if obj.App.DifferenceClass.resultAvailable
-                obj.MasksCheckbox.Enable = 'on';
-                obj.MasksCheckbox.Value = true;  % Enable and check by default
-            else
-                obj.MasksCheckbox.Enable = 'off';
-                obj.MasksCheckbox.Value = false;  % Disable and uncheck
-            end
             obj.updateCheckboxes();  % Update checkboxes based on current state
             obj.updateSlider();
             obj.updateVisualization();

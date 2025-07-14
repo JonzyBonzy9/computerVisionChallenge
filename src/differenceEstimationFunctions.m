@@ -44,6 +44,19 @@ classdef differenceEstimationFunctions < handle
             obj.resultAvailable = false;
         end
 
+        function reset(obj)
+            % Reset all properties to initial state
+            obj.lastIndices = [];
+            obj.method = '';
+            obj.threshold = NaN;
+            obj.blockSize = 1;
+            obj.areaMin = 1;
+            obj.areaMax = Inf;
+            obj.differenceMasks = {};
+            obj.resultAvailable = false;
+            obj.maskStack = [];
+        end
+
         function differenceMasks = calculate(obj, indices, method, threshold, blockSize, areaMin, areaMax)
             obj.lastIndices = indices;
             obj.method = method;

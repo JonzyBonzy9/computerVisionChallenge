@@ -39,6 +39,20 @@ classdef calcOverlay < handle
             obj.imageArray = imageArray;
             obj.resultAvailable = false;
         end
+        function reset(obj)
+            % Reset all properties to their initial state
+            obj.lastIndices = [];
+            obj.lastOutput = [];
+            obj.resultAvailable = false;
+            obj.scoreMatrix = [];
+            obj.transforms = {};
+            obj.groups = {};
+            obj.g = graph();
+            obj.warpedImages = {};
+            obj.warpedMasks = {};
+            obj.imageStack = {};
+            obj.groupOverlay = {};
+        end
         function obj = calculate(obj, idxs, method, dispFunction)
             if nargin < 3
                 method = 'successive';  % or whatever your default is
