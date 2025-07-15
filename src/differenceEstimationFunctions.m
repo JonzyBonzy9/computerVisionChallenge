@@ -80,6 +80,9 @@ classdef differenceEstimationFunctions < handle
             filteredImages = obj.overlay.warpedImages(validPositions);
             filteredMasks = obj.overlay.warpedMasks(validPositions);
 
+            % Preprocess filtered masks to avoid edge artifacts with block processing
+            preprocessedMasks = differenceEstimationFunctions.preprocessFilteredMasks(filteredMasks, blockSize);
+
             obj.differenceMasks = cell(1, length(filteredImages)-1);
 
             % Preprocess images first
@@ -112,7 +115,7 @@ classdef differenceEstimationFunctions < handle
                 end
                 mask = imresize(mask, size(filteredMasks{i}), 'nearest');
 
-                mask = mask & filteredMasks{i} & filteredMasks{i+1};
+                mask = mask & preprocessedMasks{i} & preprocessedMasks{i+1};
 
                 obj.differenceMasks{i} = mask;
 
@@ -396,6 +399,28 @@ classdef differenceEstimationFunctions < handle
             % Normalize to [0,1] range
             lbp = lbp / 255;
         end
+
+        function preprocessedMasks = preprocessFilteredMasks(filteredMasks, blockSize)
+            % Preprocess filtered masks to remove edge artifacts when using block processing
+            % The issue occurs when blocks straddle the boundary between valid (1) and invalid (0) regions
+
+            preprocessedMasks = cell(size(filteredMasks));
+
+            if blockSize <= 1
+                % No block processing, return original masks
+                preprocessedMasks = filteredMasks;
+                return;
+            end
+
+            % Calculate erosion size based on block size to remove problematic edge blocks
+            erodeSize = ceil(blockSize / 2);
+            se = strel('disk', erodeSize);
+
+            for i = 1:length(filteredMasks)
+                % Erode the mask to remove edge regions where blocks might straddle boundaries
+                preprocessedMasks{i} = imerode(filteredMasks{i}, se);
+            end
+        end
     end
 
     %% ===== Extended Methods for Three-Dimensional Preset Calculation =====
@@ -433,6 +458,9 @@ classdef differenceEstimationFunctions < handle
             obj.areaMin = areaMin;
             obj.areaMax = areaMax;
             obj.threshold = threshold;
+
+            % Preprocess filtered masks to avoid edge artifacts with block processing
+            preprocessedMasks = differenceEstimationFunctions.preprocessFilteredMasks(filteredMasks, blockSize);
 
             % === STEP 2: Determine Detection Method(s) based on Type ===
             [detectionMethods, methodWeights] = obj.determineTypeParameters(algorithm);
@@ -495,7 +523,7 @@ classdef differenceEstimationFunctions < handle
                 end
 
                 % Apply intersection with valid regions
-                combinedMask = combinedMask & filteredMasks{i} & filteredMasks{i+1};
+                combinedMask = combinedMask & preprocessedMasks{i} & preprocessedMasks{i+1};
 
                 rawMasks{i} = combinedMask;
             end
