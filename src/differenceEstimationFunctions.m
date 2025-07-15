@@ -34,7 +34,7 @@ classdef differenceEstimationFunctions < handle
         valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
         value_range_threshold = [0, 1];
         value_range_blockSize = [0, 100];
-        value_range_areaMin = [0, sqrt(10)];      % Quadratic scale: 0% to 5%
+        value_range_areaMin = [0, sqrt(9)];      % Quadratic scale: 0% to 5%
         value_range_areaMax = [0, sqrt(100)];
     end
 
