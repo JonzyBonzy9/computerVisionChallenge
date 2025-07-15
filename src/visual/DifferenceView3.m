@@ -66,7 +66,7 @@ classdef DifferenceView3 < handle
         Checkboxes          matlab.ui.control.CheckBox
 
         % Internal state and data
-        group
+        group = 1                 % Current group index for image selection
         isUpdatingPreset logical  % Flag to prevent recursive updates
         currentVisualizationMode string  % 'Individual' or 'Combined'
 
@@ -1596,7 +1596,8 @@ classdef DifferenceView3 < handle
             numGroups = numel(groups);
             groupNames = arrayfun(@num2str, 1:numGroups, 'UniformOutput', false);
             obj.GroupDropdown.Items = groupNames;
-            obj.GroupDropdown.Value = groupNames{1};  % Default to first group
+            obj.GroupDropdown.Value = string(obj.group);  % Default to first group
+
 
             % Attach callback for dropdown selection change (like DifferenceView)
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupChanged();
