@@ -581,7 +581,7 @@ classdef differenceEstimationFunctions < handle
                 case 'ABS+GRAD+SSIM(40/30/30)'
                     % Mixed environments: balanced approach with multiple methods
                     methods = {'absdiff', 'gradient', 'ssim'};
-                    methodWeights = [0.4, 0.3, 0.3]; % Balanced combination
+                    methodWeights = [0.8, 0.1, 0.1]; % Balanced combination
 
                 otherwise
                     if ismember(type, obj.valid_methods)

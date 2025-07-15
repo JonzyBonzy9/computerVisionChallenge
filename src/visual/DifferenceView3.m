@@ -311,7 +311,7 @@ classdef DifferenceView3 < handle
                 'algorithm', 'ABS+GRAD+PCA(50/20/30)', ...         % Gradient + edge detection for buildings
                 'threshold', 0.3, ...                    % 0.2 threshold for clear changes
                 'blockSize', 1, ...                      % 1 pixel block size for fine detail
-                'areaMinPercent', 0.0006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
+                'areaMinPercent', 0.006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
                 'areaMaxPercent', 12.0, ...              % 12% max area for large structures
                 'temporalFilter', 'fast', ...            % Fast temporal processing for urban changes
                 'scale', 'medium');                      % Medium spatial scale
