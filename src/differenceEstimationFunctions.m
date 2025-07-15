@@ -424,14 +424,9 @@ classdef differenceEstimationFunctions < handle
 
             preprocessedMasks = cell(size(filteredMasks));
 
-            if blockSize <= 1
-                % No block processing, return original masks
-                preprocessedMasks = filteredMasks;
-                return;
-            end
-
             % Calculate erosion size based on block size to remove problematic edge blocks
             erodeSize = ceil(blockSize / 2);
+            erodeSize = erodeSize + 2; % Add base erosion to ensure boundary cleanup
             se = strel('disk', erodeSize);
 
             for i = 1:length(filteredMasks)
@@ -523,7 +518,6 @@ classdef differenceEstimationFunctions < handle
                     % Resize mask to match original image size
                     mask = imresize(mask, size(filteredMasks{i}), 'nearest');
                     pairMasks{methodIdx} = double(mask) * weight; % Apply method weight to mask
-                    dispFunc(sprintf('class: %s', class(mask)));
                 end
 
                 % Combine multiple methods if used
@@ -541,7 +535,6 @@ classdef differenceEstimationFunctions < handle
 
                 % Apply intersection with valid regions
                 rawMasks{i} = combinedMask .* double(preprocessedMasks{i}) .* double(preprocessedMasks{i+1});
-                dispFunc(sprintf('class: %s', class(rawMasks{i})));
             end
 
             dispFunc('Initial masks calculated, proceeding with postprocessing...');
