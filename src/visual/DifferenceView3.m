@@ -65,7 +65,7 @@ classdef DifferenceView3 < handle
         CheckboxGrid        matlab.ui.container.GridLayout
         Checkboxes          matlab.ui.control.CheckBox
 
-        % Internal state
+        % Internal state and data
         currentResults
         currentMasks
         group
@@ -73,8 +73,6 @@ classdef DifferenceView3 < handle
         currentVisualizationMode string  % 'Individual' or 'Combined'
 
         % TimeSlider-like functionality for individual mode
-        imageStack          % 4D array of images for efficient blending
-        maskStack           % 4D array of masks for efficient blending
         sigma               double  % Current Gaussian sigma value
 
         % Image-dependent area scaling
@@ -85,6 +83,10 @@ classdef DifferenceView3 < handle
         % Presets for change types
         ChangeTypePresets   struct
         EnvironmentPresets  struct
+
+        % Preset tracking properties
+        currentEnvironmentPreset    string  % Which environment preset is active for threshold
+        currentSpatialPreset        string  % Which spatial preset is active for block size/areas
     end
 
     methods
@@ -100,8 +102,10 @@ classdef DifferenceView3 < handle
 
             % Initialize TimeSlider-style properties
             obj.sigma = 1.0;  % Default Gaussian sigma
-            obj.imageStack = [];
-            obj.maskStack = [];
+
+            % Initialize preset tracking
+            obj.currentEnvironmentPreset = "Custom";
+            obj.currentSpatialPreset = "Custom";
 
             % Initialize change type presets
             obj.initializePresets();
@@ -124,7 +128,6 @@ classdef DifferenceView3 < handle
             obj.controlTabGroup.SelectedTab = obj.visualizationTab;
             % Called when new images are loaded - reset the view completely
             obj.currentMasks = [];
-            obj.currentResults = [];
 
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
@@ -134,32 +137,22 @@ classdef DifferenceView3 < handle
             title(obj.AnalysisAxes, 'Change Analysis');
 
             % Reset parameters to defaults (logarithmic scale for areas)
-            obj.ThresholdSlider.Value = 20;    % 20% threshold (within [1, 100] range)
+            obj.ThresholdSlider.Value = 0.2;    % 0.2 threshold (within [0, 1] range)
             obj.BlockSizeSlider.Value = 1;     % 3 pixels block size (within [1, 100] range)
             obj.AreaMinSlider.Value = 2;       % Log scale: 10^2 = 100 pixels
             obj.AreaMaxSlider.Value = 4;       % Log scale: 10^4 = 10000 pixels
 
             % Reset two-dimensional presets
+            obj.EnvironmentPresetDropdown.Value = 'Custom';
             obj.ScaleDropdown.Value = 'Custom';
             obj.TemporalFilterDropdown.Value = 'none';
+
             % Update area slider limits based on available images
             % Get image dimensions from the overlay class
-            try
-                % Try to get image size from the first available image
-                imageArray = obj.App.OverlayClass.imageArray;
-                if ~isempty(imageArray)
-                    firstImage = imageArray{1}.data; % Assuming image data is in .data field
-                    if ~isempty(firstImage)
-                        obj.currentImageSize = [size(firstImage, 1), size(firstImage, 2)];
-                        obj.totalPixels = prod(obj.currentImageSize);
-                        obj.updateAreaSliderLimits();
-                    end
-                end
-            catch
-                % If we can't get image size, use defaults
-                obj.updateAreaSliderLimits();
-            end
-            obj.RefreshGroupButton.Enable = true;
+            obj.currentImageSize = size(obj.App.OverlayClass.imageArray{1}.data, [1, 2]);
+            obj.totalPixels = obj.currentImageSize(1) * obj.currentImageSize(2);
+            obj.updateAreaSliderLimits();
+
             obj.update();
             obj.onCustomParameterChanged();
         end
@@ -184,19 +177,25 @@ classdef DifferenceView3 < handle
             if obj.App.DifferenceClass.resultAvailable
                 obj.MasksCheckbox.Enable = 'on';
                 obj.MasksCheckbox.Value = true;  % Enable and check by default
+
+                % get size of base image
+                obj.currentImageSize = size(obj.App.OverlayClass.imageArray{1}.data, [1, 2]);
             else
                 obj.MasksCheckbox.Enable = 'off';
                 obj.MasksCheckbox.Value = false;  % Disable and uncheck
+                obj.clearAxes(obj.AnalysisAxes); % Clear analysis axes if no results available
             end
 
             % updated after overlay is calculated
             if obj.App.OverlayClass.resultAvailable
                 obj.controlTabGroup.SelectedTab = obj.parametersTab;
+                obj.RefreshGroupButton.Enable = true;
                 obj.CalculateButton.Enable = 'on';
                 obj.ImagesCheckbox.Enable = 'on';
                 obj.ImagesCheckbox.Value = true;  % Enable and check by default
                 obj.updateGroups(obj.App.OverlayClass.groups);
             else
+                obj.RefreshGroupButton.Enable = false;
                 obj.CalculateButton.Enable = 'off';
                 obj.ImagesCheckbox.Enable = 'off';
                 obj.ImagesCheckbox.Value = true;  % Disable and uncheck
@@ -309,6 +308,12 @@ classdef DifferenceView3 < handle
             % ALGORITHM/TYPE dimension (combines detection method - temporal filter removed from algorithm control)
             obj.ChangeTypePresets.algorithmType = struct();
 
+            % THRESHOLD dimension (links to environment presets for threshold values)
+            obj.ChangeTypePresets.threshold = struct();
+            obj.ChangeTypePresets.threshold.urban = struct('thresholdValue', 0.2, 'presetName', 'urban');
+            obj.ChangeTypePresets.threshold.natural = struct('thresholdValue', 0.15, 'presetName', 'natural');
+            obj.ChangeTypePresets.threshold.mixed = struct('thresholdValue', 0.05, 'presetName', 'mixed');
+
             % Basic algorithms (temporal filter now independent)
             obj.ChangeTypePresets.algorithmType.absdiff = struct(...
                 'method', 'absdiff', ...               % Absolute difference
@@ -377,7 +382,7 @@ classdef DifferenceView3 < handle
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
                 'algorithm', 'ssim', ...             % Simple difference detection for buildings
-                'threshold', 20, ...                    % 20% threshold for clear changes
+                'threshold', 0.2, ...                    % 0.2 threshold for clear changes
                 'blockSize', 1, ...                     % 1 pixel block size for fine detail
                 'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
                 'areaMaxPercent', 200000, ...                % 4% max area for large structures
@@ -387,7 +392,7 @@ classdef DifferenceView3 < handle
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.natural = struct(...
                 'algorithm', 'ssim', ...      % Texture-based for natural features
-                'threshold', 0.2, ...                    % 15% threshold (more sensitive for natural changes)
+                'threshold', 0.15, ...                    % 0.15 threshold (more sensitive for natural changes)
                 'blockSize', 3, ...                     % 5 pixel block size for organic textures
                 'areaMinPixels', 100000, ...               % 500 pixels minimum area (larger organic features)
                 'areaMaxPercent', 100000000, ...                % 8% max area for natural formations
@@ -396,7 +401,7 @@ classdef DifferenceView3 < handle
 
             obj.EnvironmentPresets.mixed = struct(...
                 'algorithm', 'gradient', ...             % Simple difference detection for buildings
-                'threshold', 5, ...                    % 20% threshold for clear changes
+                'threshold', 0.05, ...                    % 0.05 threshold for clear changes
                 'blockSize', 2, ...                     % 1 pixel block size for fine detail
                 'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
                 'areaMaxPercent', 50000, ...                % 4% max area for large structures
@@ -523,8 +528,8 @@ classdef DifferenceView3 < handle
             presetGrid.Padding = [15, 15, 15, 15];
 
             obj.EnvironmentPresetDropdown = uidropdown(presetGrid, ...
-                'Items', differenceEstimationFunctions.valid_change_types, ...
-                'Value', 'urban', ...
+                'Items', [{'Custom'}, differenceEstimationFunctions.valid_change_types], ...
+                'Value', 'Custom', ...
                 'Tooltip', 'Select environment-optimized preset configuration', ...
                 'FontSize', 11);
             obj.EnvironmentPresetDropdown.Layout.Row = 1;
@@ -599,12 +604,12 @@ classdef DifferenceView3 < handle
             manualLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            % Threshold (percentage 0-100%)
-            obj.ThresholdLabel = uilabel(advancedGrid, 'Text', 'Threshold: 20%');
+            % Threshold (decimal 0-1)
+            obj.ThresholdLabel = uilabel(advancedGrid, 'Text', 'Threshold: 0.200');
             obj.ThresholdLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.ThresholdSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_threshold, 'Value', 20, ...
+            obj.ThresholdSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_threshold, 'Value', 0.2, ...
                 'Tooltip', 'Detection threshold as percentage (1-100%)');
             obj.ThresholdSlider.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
@@ -779,10 +784,10 @@ classdef DifferenceView3 < handle
 
             % Temporal processing handler (independent)
             obj.TemporalFilterDropdown.ValueChangedFcn = @(src, event) obj.onTemporalFilterChanged();
-            obj.ThresholdSlider.ValueChangedFcn = @(src, event) obj.onCustomParameterChanged();
-            obj.BlockSizeSlider.ValueChangedFcn = @(src, event) obj.onCustomParameterChanged();
-            obj.AreaMinSlider.ValueChangedFcn = @(src, event) obj.onCustomParameterChanged();
-            obj.AreaMaxSlider.ValueChangedFcn = @(src, event) obj.onCustomParameterChanged();
+            obj.ThresholdSlider.ValueChangedFcn = @(src, event) obj.onThresholdChanged();
+            obj.BlockSizeSlider.ValueChangedFcn = @(src, event) obj.onSpatialParameterChanged();
+            obj.AreaMinSlider.ValueChangedFcn = @(src, event) obj.onSpatialParameterChanged();
+            obj.AreaMaxSlider.ValueChangedFcn = @(src, event) obj.onSpatialParameterChanged();
 
             % Mask navigation
             obj.MaskSlider.ValueChangedFcn = @(src, event) obj.onMaskSelectionChanged();
@@ -803,22 +808,101 @@ classdef DifferenceView3 < handle
         function onAlgorithmTypeChanged(obj)
             % Handle algorithm/type change
             algorithmType = obj.AlgorithmTypeDropdown.Value;
+
+            % Algorithm change affects environment presets, so reset to Custom
+            if ~obj.isUpdatingPreset
+                obj.EnvironmentPresetDropdown.Value = 'Custom';
+                obj.currentEnvironmentPreset = "Custom";
+            end
+
             obj.updateStatus(['Algorithm changed to: ' algorithmType]);
             % Note: Temporal filter is now independent and not affected by algorithm selection
         end
 
         function onTemporalFilterChanged(obj)
-            % Handle temporal processing change (independent of other parameters)
+            % Handle temporal processing change (affects environment presets)
             filter = obj.TemporalFilterDropdown.Value;
+
+            % Temporal filter change affects environment presets, so reset to Custom
+            if ~obj.isUpdatingPreset
+                obj.EnvironmentPresetDropdown.Value = 'Custom';
+                obj.currentEnvironmentPreset = "Custom";
+            end
+
             obj.updateStatus(['Temporal processing changed to: ' filter]);
         end
 
-        function onEnvironmentPresetChanged(obj)
+        function onThresholdChanged(obj)
+            % Handle threshold slider change (affects environment presets only)
+            if ~obj.isUpdatingPreset
+                % Check if threshold matches any environment preset
+                currentThreshold = obj.ThresholdSlider.Value;
+                thresholdPresetName = obj.findMatchingThresholdPreset(currentThreshold);
+
+                if ~isempty(thresholdPresetName)
+                    % Threshold matches a preset - keep environment preset
+                    obj.ThresholdLabel.Text = sprintf('Threshold: %.3f [%s environment]', currentThreshold, thresholdPresetName);
+                    obj.ThresholdLabel.FontColor = [0.8, 0.4, 0.1]; % Orange for environment control
+                    obj.currentEnvironmentPreset = thresholdPresetName; % Update tracking
+                    obj.EnvironmentPresetDropdown.Value = thresholdPresetName;
+                else
+                    % Threshold doesn't match any preset - set environment preset to Custom
+                    obj.ThresholdLabel.Text = sprintf('Threshold: %.3f', currentThreshold);
+                    obj.ThresholdLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
+                    obj.currentEnvironmentPreset = "Custom";
+                    obj.EnvironmentPresetDropdown.Value = 'Custom';
+                end
+
+                % DO NOT reset spatial preset - threshold is environment-controlled
+            else
+                % Preset update - use the specialized labeling method
+                scale = obj.ScaleDropdown.Value;
+                algorithmType = obj.AlgorithmTypeDropdown.Value;
+                obj.updateParameterLabelsWithPresetInfo('Custom', scale, algorithmType);
+            end
+        end
+
+        function onSpatialParameterChanged(obj)
+            % Handle spatial parameter changes (block size, areas)
+            if ~obj.isUpdatingPreset
+                % Reset spatial preset to Custom when spatial parameters are manually changed
+                obj.ScaleDropdown.Value = 'Custom';
+                obj.currentSpatialPreset = "Custom";
+
+                % Block size is part of environment presets, so reset environment preset too
+                obj.EnvironmentPresetDropdown.Value = 'Custom';
+                obj.currentEnvironmentPreset = "Custom";
+
+                % Update spatial parameter labels
+                obj.BlockSizeLabel.Text = sprintf('Block Size: %.0f pixels', obj.BlockSizeSlider.Value);
+                obj.updateAreaLabels();
+
+                % Reset label colors to dark gray (manual control) for spatial parameters
+                obj.BlockSizeLabel.FontColor = [0.4, 0.4, 0.4];
+                obj.AreaMinLabel.FontColor = [0.4, 0.4, 0.4];
+                obj.AreaMaxLabel.FontColor = [0.4, 0.4, 0.4];
+            else
+                % Preset update - use the specialized labeling method
+                scale = obj.ScaleDropdown.Value;
+                algorithmType = obj.AlgorithmTypeDropdown.Value;
+                obj.updateParameterLabelsWithPresetInfo('Custom', scale, algorithmType);
+            end
+        end        function onEnvironmentPresetChanged(obj)
             % Handle environment preset selection
             preset = obj.EnvironmentPresetDropdown.Value;
 
+            % Handle Custom selection - just update tracking without changing parameters
+            if strcmp(preset, 'Custom')
+                obj.currentEnvironmentPreset = "Custom";
+                obj.updateStatus('Environment preset set to Custom - use manual parameter controls');
+                return;
+            end
+
             try
                 obj.isUpdatingPreset = true;
+
+                % Track which environment preset is active
+                obj.currentEnvironmentPreset = preset;
 
                 % Get preset configuration
                 presetConfig = obj.EnvironmentPresets.(preset);
@@ -846,7 +930,7 @@ classdef DifferenceView3 < handle
                 obj.isUpdatingPreset = false;
 
                 % Provide feedback
-                obj.updateStatus(sprintf('Applied %s environment preset: %s algorithm, %d%% threshold, %d pixel blocks, %s temporal processing', ...
+                obj.updateStatus(sprintf('Applied %s environment preset: %s algorithm, %.3f threshold, %d pixel blocks, %s temporal processing', ...
                     preset, presetConfig.algorithm, presetConfig.threshold, presetConfig.blockSize, presetConfig.temporalFilter));
 
             catch ME
@@ -859,6 +943,15 @@ classdef DifferenceView3 < handle
             % Handle two-dimensional preset selection (scale only)
             scale = obj.ScaleDropdown.Value;
             algorithmType = obj.AlgorithmTypeDropdown.Value;
+
+            % Scale change affects environment presets, so reset to Custom
+            if ~obj.isUpdatingPreset
+                obj.EnvironmentPresetDropdown.Value = 'Custom';
+                obj.currentEnvironmentPreset = "Custom";
+            end
+
+            % Track which spatial preset is active
+            obj.currentSpatialPreset = scale;
 
             % Provide user feedback about current selection
             obj.getCurrentPresetDescription();
@@ -954,29 +1047,11 @@ classdef DifferenceView3 < handle
             if obj.App.dataLoaded
                 obj.updateVisualization();
             end
-        end
-
-        function onCustomParameterChanged(obj)
-            % Update parameter labels and reset dropdowns when manually adjusting
+        end        function onCustomParameterChanged(obj)
+            % Legacy function - now handled by specific parameter change functions
+            % This function is kept for compatibility but may be removed in future versions
             if ~obj.isUpdatingPreset
-                % Manual adjustment - reset preset dropdowns to custom and update labels normally
-                obj.EnvironmentPresetDropdown.Value = 'urban';
-                obj.ScaleDropdown.Value = 'Custom';
-
-                % Use appropriate labels for manual control
-                obj.ThresholdLabel.Text = sprintf('Threshold: %.1f%%', obj.ThresholdSlider.Value);
-                obj.BlockSizeLabel.Text = sprintf('Block Size: %.0f pixels', obj.BlockSizeSlider.Value);
-
-                % Update area labels using the logarithmic helper method
-                obj.updateAreaLabels();
-
-                % Reset label colors to dark gray (manual control)
-                obj.ThresholdLabel.FontColor = [0.4, 0.4, 0.4];
-                obj.BlockSizeLabel.FontColor = [0.4, 0.4, 0.4];
-                obj.AreaMinLabel.FontColor = [0.4, 0.4, 0.4];
-                obj.AreaMaxLabel.FontColor = [0.4, 0.4, 0.4];
-            else
-                % Preset update - use the specialized labeling method
+                % Update all parameter labels generically
                 scale = obj.ScaleDropdown.Value;
                 algorithmType = obj.AlgorithmTypeDropdown.Value;
                 obj.updateParameterLabelsWithPresetInfo('Custom', scale, algorithmType);
@@ -998,105 +1073,31 @@ classdef DifferenceView3 < handle
             try
                 obj.updateStatus('Calculating changes...');
                 obj.CalculateButton.Enable = 'off';
-                drawnow;
 
                 % Get selected images
                 selectedIndices = obj.getSelectedImageIndices();
+                obj.updateStatus(sprintf('Processing %d images with advanced calculation system', length(selectedIndices)));
                 if length(selectedIndices) < 2
                     obj.updateStatus('Error: Select at least 2 images for comparison');
                     obj.CalculateButton.Enable = 'on';
                     return;
                 end
 
-                % Get unified parameters
+                % Get parameters from the controls
                 algorithmType = obj.AlgorithmTypeDropdown.Value;
                 scale = obj.ScaleDropdown.Value;
                 temporalFilter = obj.TemporalFilterDropdown.Value;
-
-                % Get custom parameter values (always collected, may be overridden by presets)
-                thresholdPercent = obj.ThresholdSlider.Value;    % Percentage (1-100)
+                thresholdValue = obj.ThresholdSlider.Value;    % Decimal (0-1)
                 blockSizePixels = obj.BlockSizeSlider.Value;     % Absolute pixels (1-100)
-                % Area values are now handled via logarithmic conversion
 
-                obj.updateStatus(sprintf('Processing %d images with advanced calculation system', length(selectedIndices)));
-                drawnow;
+                % Convert logarithmic area values to absolute pixel counts
+                absoluteAreaMin = obj.logAreaToPixels(obj.AreaMinSlider.Value);
+                absoluteAreaMax = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
 
-                % Convert UI parameters to format expected by calculateAdvanced
-                % Get reference image for dimension calculations
-                isInSelection = ismember(obj.App.DifferenceClass.overlay.lastIndices, selectedIndices);
-                filteredImages = obj.App.DifferenceClass.overlay.warpedImages(isInSelection);
+                % Use calculateAdvanced method
+                obj.currentMasks = obj.App.DifferenceClass.calculateAdvanced(...
+                    selectedIndices, temporalFilter, algorithmType, thresholdValue, blockSizePixels, absoluteAreaMin, absoluteAreaMax);
 
-                if ~isempty(filteredImages)
-                    referenceImage = filteredImages{1};
-                    [imgHeight, imgWidth] = size(referenceImage, [1, 2]);
-
-                    % Update image dimensions for area scaling
-                    obj.currentImageSize = [imgHeight, imgWidth];
-                    obj.totalPixels = imgHeight * imgWidth;
-
-                    % Update area slider limits based on actual image size
-                    obj.updateAreaSliderLimits();
-
-                    % Convert parameters to absolute values for calculateAdvanced
-                    absoluteThreshold = max(0.01, min(1.0, thresholdPercent / 100));
-                    absoluteBlockSize = max(1, min(100, ceil(blockSizePixels)));
-
-                    % Convert logarithmic area values to absolute pixel counts
-                    absoluteAreaMin = obj.logAreaToPixels(obj.AreaMinSlider.Value);
-                    absoluteAreaMax = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
-
-                    % Map algorithmType to type for calculateAdvanced
-                    if contains(algorithmType, 'urban')
-                        envType = 'urban';
-                    elseif contains(algorithmType, 'natural')
-                        envType = 'natural';
-                    else
-                        envType = algorithmType;  % Default for basic algorithms
-                    end
-
-                    % Use calculateAdvanced method
-                    obj.currentMasks = obj.App.DifferenceClass.calculateAdvanced(...
-                        selectedIndices, temporalFilter, envType, absoluteThreshold, absoluteBlockSize, absoluteAreaMin, absoluteAreaMax);
-                else
-                    error('No images available for calculation');
-                end
-
-                % Store advanced calculation results
-                obj.currentResults = struct();
-                obj.currentResults.indices = selectedIndices;
-                obj.currentResults.algorithmType = algorithmType;
-                obj.currentResults.environmentType = envType;
-                obj.currentResults.parameters = struct(...
-                    'threshold', obj.App.DifferenceClass.threshold, ...
-                    'blockSize', obj.App.DifferenceClass.blockSize, ...
-                    'areaMin', obj.App.DifferenceClass.areaMin, ...
-                    'areaMax', obj.App.DifferenceClass.areaMax);
-                obj.currentResults.presetDimensions = struct(...
-                    'scale', scale, 'temporalFilter', temporalFilter);
-                obj.currentResults.customParameters = struct(...
-                    'thresholdPercent', thresholdPercent, 'blockSizePixels', blockSizePixels, ...
-                    'areaMinPixels', absoluteAreaMin, 'areaMaxPixels', absoluteAreaMax, ...
-                    'areaMinLogValue', obj.AreaMinSlider.Value, 'areaMaxLogValue', obj.AreaMaxSlider.Value);
-
-                % Setup mask navigation
-                if ~isempty(obj.currentMasks)
-                    % Update visualization
-                    % Provide detailed status
-                    usePresetInfo = {};
-                    if ~strcmp(scale, 'Custom'), usePresetInfo{end+1} = sprintf('scale:%s', scale); end
-                    if ~strcmp(temporalFilter, 'none'), usePresetInfo{end+1} = sprintf('temporal:%s', temporalFilter); end
-
-                    if ~isempty(usePresetInfo)
-                        statusMsg = sprintf('Advanced calculation completed using %s algorithm (env: %s) with presets: %s', ...
-                            algorithmType, envType, strjoin(usePresetInfo, ', '));
-                    else
-                        statusMsg = sprintf('Advanced calculation completed using %s algorithm (env: %s) with custom parameters', ...
-                            algorithmType, envType);
-                    end
-                    obj.updateStatus(statusMsg);
-                else
-                    obj.updateStatus('No changes detected with current parameters');
-                end
                 % update view
                 obj.CalculateButton.Enable = 'on';
                 obj.currentVisualizationMode = "Combined";
@@ -1116,7 +1117,6 @@ classdef DifferenceView3 < handle
         function onClearPressed(obj)
             % Handle clear button press
             obj.currentMasks = [];
-            obj.currentResults = [];
 
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
@@ -1521,78 +1521,6 @@ classdef DifferenceView3 < handle
             end
         end
 
-        function displayTemporalProfile(obj, axes)
-            % Display temporal profile of changes
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
-                return;
-            end
-
-            numMasks = length(obj.currentMasks);
-            maskTotalPixels = numel(obj.currentMasks{1});
-
-            % Calculate cumulative change
-            cumulativeChange = zeros(1, numMasks);
-            instantChange = zeros(1, numMasks);
-
-            for i = 1:numMasks
-                instantChange(i) = sum(obj.currentMasks{i}(:)) / maskTotalPixels * 100;
-                if i == 1
-                    cumulativeChange(i) = instantChange(i);
-                else
-                    cumulativeChange(i) = cumulativeChange(i-1) + instantChange(i);
-                end
-            end
-
-            yyaxis(axes, 'left');
-            plot(axes, 1:numMasks, instantChange, 'o-b', 'LineWidth', 2);
-            ylabel(axes, 'Instant Change (%)', 'Color', 'b');
-
-            yyaxis(axes, 'right');
-            plot(axes, 1:numMasks, cumulativeChange, 's-r', 'LineWidth', 2);
-            ylabel(axes, 'Cumulative Change (%)', 'Color', 'r');
-
-            title(axes, 'Temporal Change Profile');
-            xlabel(axes, 'Time Step (Mask Index)');
-            grid(axes, 'on');
-            legend(axes, 'Instant Change', 'Cumulative Change', 'Location', 'best');
-        end
-
-        function displayChangeTimeline(obj, axes)
-            % Display change timeline with activity periods
-            if isempty(obj.currentMasks)
-                title(axes, 'No masks available');
-                return;
-            end
-
-            numMasks = length(obj.currentMasks);
-            maskTotalPixels = numel(obj.currentMasks{1});
-
-            changeMagnitudes = zeros(1, numMasks);
-            for i = 1:numMasks
-                changeMagnitudes(i) = sum(obj.currentMasks{i}(:)) / maskTotalPixels * 100;
-            end
-
-            % Create color-coded timeline
-            colors = changeMagnitudes;
-            scatter(axes, 1:numMasks, changeMagnitudes, 100, colors, 'filled');
-            colormap(axes, 'hot');
-            colorbar(axes);
-
-            title(axes, 'Change Activity Timeline');
-            xlabel(axes, 'Time Step (Mask Index)');
-            ylabel(axes, 'Change Intensity (%)');
-            grid(axes, 'on');
-
-            % Add threshold line for significant changes
-            if max(changeMagnitudes) > 0
-                threshold = mean(changeMagnitudes) + std(changeMagnitudes);
-                line(axes, [1, numMasks], [threshold, threshold], ...
-                    'Color', 'r', 'LineStyle', '--', 'LineWidth', 1);
-                legend(axes, 'Change Points', 'Significance Threshold', 'Location', 'best');
-            end
-        end
-
         function updateAnalysisTab(obj)
             % Update the analysis tab with detailed analysis
             if ~obj.App.dataLoaded
@@ -1720,17 +1648,24 @@ classdef DifferenceView3 < handle
 
         function updateParameterLabelsWithPresetInfo(obj, ~, scale, ~)
             % Update parameter labels with indicators showing which are controlled by presets
-            % All parameters now display percentage values
-            % Note: Threshold is now always custom (no tempo dimension)
+            % Differentiate between Environment presets (threshold) and Spatial presets (block size, areas)
 
-            % Threshold - always custom now (no tempo dimension)
-            obj.ThresholdLabel.Text = sprintf('Threshold: %.1f%%', obj.ThresholdSlider.Value);
-            obj.ThresholdLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
+            % Threshold - check if it matches any environment preset
+            currentThreshold = obj.ThresholdSlider.Value;
+            thresholdPresetName = obj.findMatchingThresholdPreset(currentThreshold);
+
+            if ~isempty(thresholdPresetName)
+                obj.ThresholdLabel.Text = sprintf('Threshold: %.3f [%s environment]', currentThreshold, thresholdPresetName);
+                obj.ThresholdLabel.FontColor = [0.8, 0.4, 0.1]; % Orange for environment control
+            else
+                obj.ThresholdLabel.Text = sprintf('Threshold: %.3f', currentThreshold);
+                obj.ThresholdLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
+            end
 
             % Block Size - controlled by scale dimension (absolute pixels)
             if ~strcmp(scale, 'Custom')
-                obj.BlockSizeLabel.Text = sprintf('Block Size: %.0f pixels [%s scale]', obj.BlockSizeSlider.Value, scale);
-                obj.BlockSizeLabel.FontColor = [0.2, 0.6, 0.8];
+                obj.BlockSizeLabel.Text = sprintf('Block Size: %.0f pixels [%s spatial]', obj.BlockSizeSlider.Value, scale);
+                obj.BlockSizeLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for spatial control
             else
                 obj.BlockSizeLabel.Text = sprintf('Block Size: %.0f pixels', obj.BlockSizeSlider.Value);
                 obj.BlockSizeLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
@@ -1740,8 +1675,8 @@ classdef DifferenceView3 < handle
             if ~strcmp(scale, 'Custom')
                 minPixels = obj.logAreaToPixels(obj.AreaMinSlider.Value);
                 minPercent = (minPixels / obj.totalPixels) * 100;
-                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.4f%%) [%s scale]', minPixels, minPercent, scale);
-                obj.AreaMinLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for scale control
+                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.4f%%) [%s spatial]', minPixels, minPercent, scale);
+                obj.AreaMinLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for spatial control
             else
                 obj.updateAreaLabels(); % Use the helper method for manual control
                 obj.AreaMinLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
@@ -1751,8 +1686,8 @@ classdef DifferenceView3 < handle
             if ~strcmp(scale, 'Custom')
                 maxPixels = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
                 maxPercent = (maxPixels / obj.totalPixels) * 100;
-                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.2f%%) [%s scale]', maxPixels, maxPercent, scale);
-                obj.AreaMaxLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for scale control
+                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.2f%%) [%s spatial]', maxPixels, maxPercent, scale);
+                obj.AreaMaxLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for spatial control
             else
                 % For manual control, the area min label was already updated above
                 obj.AreaMaxLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
@@ -1902,6 +1837,26 @@ classdef DifferenceView3 < handle
     methods (Static)
         function name = getName()
             name = 'DifferenceDetection';
+        end
+    end
+
+    methods (Access = private)
+        function presetName = findMatchingThresholdPreset(obj, thresholdValue)
+            % Find which environment preset matches the current threshold value
+            presetName = '';
+            tolerance = 0.001; % Small tolerance for floating point comparison
+
+            thresholdPresets = obj.ChangeTypePresets.threshold;
+            presetFields = fieldnames(thresholdPresets);
+
+            for i = 1:length(presetFields)
+                presetField = presetFields{i};
+                presetThreshold = thresholdPresets.(presetField).thresholdValue;
+                if abs(thresholdValue - presetThreshold) < tolerance
+                    presetName = thresholdPresets.(presetField).presetName;
+                    break;
+                end
+            end
         end
     end
 end

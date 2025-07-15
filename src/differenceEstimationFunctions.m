@@ -32,7 +32,7 @@ classdef differenceEstimationFunctions < handle
         valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution'};
         valid_change_types = {'urban', 'natural', 'mixed'};
         valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
-        value_range_threshold = [0, 100];
+        value_range_threshold = [0, 1];
         value_range_blockSize = [0, 100];
         value_range_areaMin = [0, 6];
         value_range_areaMax = [1, 9];
@@ -396,23 +396,17 @@ classdef differenceEstimationFunctions < handle
         end
 
 
-        %% ===== 1. Absolute Difference =====
-        % Added optional skipPostprocessing to support process pipeline
-        function mask = detectChange_absdiff(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
+        % ===== Absolute Difference =====
+        function mask = detectChange_absdiff(I1, I2, threshold)
             diffImage = imabsdiff(I1, I2);
             if nargin < 3 || isnan(threshold)
                 threshold = graythresh(diffImage);
             end
             mask = imbinarize(diffImage, threshold);
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 2. Gradient Difference =====
-        function mask = detectChange_gradient(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
+        % ===== Gradient Difference =====
+        function mask = detectChange_gradient(I1, I2, threshold)
             [Gx1, Gy1] = imgradientxy(I1);
             [Gx2, Gy2] = imgradientxy(I2);
             gradDiff = abs(Gx1 - Gx2) + abs(Gy1 - Gy2);
@@ -420,28 +414,20 @@ classdef differenceEstimationFunctions < handle
                 threshold = graythresh(gradDiff);
             end
             mask = imbinarize(gradDiff, threshold);
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 3. SSIM Difference =====
-        function mask = detectChange_ssim(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
+        % ===== SSIM Difference =====
+        function mask = detectChange_ssim(I1, I2, threshold)
             [~, ssimMap] = ssim(I1, I2);
             diffMap = 1 - ssimMap;
             if nargin < 3 || isnan(threshold)
                 threshold = graythresh(diffMap);
             end
             mask = imbinarize(diffMap, threshold);
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 4. Difference of Gaussians =====
-        function mask = detectChange_DoG(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
+        % ===== Difference of Gaussians =====
+        function mask = detectChange_DoG(I1, I2, threshold)
             I1_DoG = imgaussfilt(I1, 1) - imgaussfilt(I1, 2);
             I2_DoG = imgaussfilt(I2, 1) - imgaussfilt(I2, 2);
             dogDiff = imabsdiff(I1_DoG, I2_DoG);
@@ -449,14 +435,10 @@ classdef differenceEstimationFunctions < handle
                 threshold = graythresh(dogDiff);
             end
             mask = imbinarize(dogDiff, threshold);
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 5. PCA-Based Change Detection =====
-        function mask = detectChange_pca(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
+        % ===== PCA-Based Change Detection =====
+        function mask = detectChange_pca(I1, I2, threshold)
             [rows, cols] = size(I1);
             X = [I1(:), I2(:)];
             [~, score, ~] = pca(X);
@@ -465,51 +447,10 @@ classdef differenceEstimationFunctions < handle
                 threshold = graythresh(pc1);
             end
             mask = imbinarize(pc1, threshold);
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 6. Temporal Analysis (for multi-image sequences) =====
-        function mask = detectChange_temporal(imageSequence, currentIdx, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
-
-            % Analyze change velocity over time
-            if currentIdx > 1 && currentIdx < length(imageSequence)
-                I_prev = imageSequence{currentIdx-1};
-                I_curr = imageSequence{currentIdx};
-                I_next = imageSequence{currentIdx+1};
-
-                % Convert to grayscale if needed
-                if size(I_prev, 3) == 3, I_prev = rgb2gray(I_prev); end
-                if size(I_curr, 3) == 3, I_curr = rgb2gray(I_curr); end
-                if size(I_next, 3) == 3, I_next = rgb2gray(I_next); end
-
-                I_prev = im2double(I_prev);
-                I_curr = im2double(I_curr);
-                I_next = im2double(I_next);
-
-                % Calculate temporal gradient
-                change_rate = abs(I_next - I_curr) - abs(I_curr - I_prev);
-
-                if nargin < 3 || isnan(threshold)
-                    threshold = graythresh(abs(change_rate));
-                end
-                mask = imbinarize(abs(change_rate), threshold);
-            else
-                % Fallback to simple difference for edge cases
-                mask = differenceEstimationFunctions.detectChange_absdiff(imageSequence{currentIdx}, imageSequence{currentIdx+1}, threshold, true);
-            end
-
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
-        end
-
-        %% ===== 7. Texture Change Detection =====
-        function mask = detectChange_texture(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
-
+        % ===== Texture Change Detection =====
+        function mask = detectChange_texture(I1, I2, threshold)
             % Calculate Local Binary Pattern (LBP) for texture analysis
             lbp1 = differenceEstimationFunctions.calculateLBP(I1);
             lbp2 = differenceEstimationFunctions.calculateLBP(I2);
@@ -520,16 +461,10 @@ classdef differenceEstimationFunctions < handle
                 threshold = graythresh(textureDiff);
             end
             mask = imbinarize(textureDiff, threshold);
-
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== 8. Edge Evolution Detection =====
-        function mask = detectChange_edge(I1, I2, threshold, skipPostprocessing)
-            if nargin < 4, skipPostprocessing = false; end
-
+        % ===== Edge Evolution Detection =====
+        function mask = detectChange_edge(I1, I2, threshold)
             % Detect edges and analyze their evolution
             edges1 = edge(I1, 'Canny');
             edges2 = edge(I2, 'Canny');
@@ -549,13 +484,9 @@ classdef differenceEstimationFunctions < handle
             % Convert to double for thresholding
             edgeChangeDouble = im2double(edgeChange);
             mask = edgeChangeDouble > threshold;
-
-            if ~skipPostprocessing
-                mask = differenceEstimationFunctions.postprocessMask(mask);
-            end
         end
 
-        %% ===== Helper function for LBP calculation =====
+        % ===== Helper function for LBP calculation =====
         function lbp = calculateLBP(img)
             % Simple Local Binary Pattern implementation
             if size(img, 3) == 3
@@ -593,13 +524,16 @@ classdef differenceEstimationFunctions < handle
 
     %% ===== Extended Methods for Three-Dimensional Preset Calculation =====
     methods (Access = public)
-        function differenceMasks = calculateAdvanced(obj, indices, tempo, type, threshold, blockSize, areaMin, areaMax)
+        function differenceMasks = calculateAdvanced(obj, indices, tempo, algorithm, threshold, blockSize, areaMin, areaMax)
             % Calculate difference masks using three-dimensional preset system
             % Arguments:
             %   indices - image indices to process
             %   tempo - temporal dimension: 'fast', 'medium', 'slow'
-            %   scale - spatial dimension: 'small', 'medium', 'large'
-            %   type - environment type: 'urban', 'natural', 'mixed'
+            %   algorithm - change detection algorithm type: 'urban', 'natural', 'mixed', or specific method
+            %   threshold - threshold for change detection
+            %   blockSize - spatial scale dimension (block size for preprocessing)
+            %   areaMin - minimum area for change detection
+            %   areaMax - maximum area for change detection
 
             obj.lastIndices = indices;
 
@@ -621,7 +555,7 @@ classdef differenceEstimationFunctions < handle
             obj.threshold = threshold;
 
             % === STEP 2: Determine Detection Method(s) based on Type ===
-            [detectionMethods, methodWeights] = obj.determineTypeParameters(type);
+            [detectionMethods, methodWeights] = obj.determineTypeParameters(algorithm);
 
             % === STEP 3: Calculate initial masks for all image pairs ===
             rawMasks = cell(1, length(filteredImages)-1);
@@ -643,21 +577,21 @@ classdef differenceEstimationFunctions < handle
                     % Calculate mask for this method
                     switch lower(currentMethod)
                         case 'absdiff'
-                            mask = differenceEstimationFunctions.detectChange_absdiff(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_absdiff(I1_proc, I2_proc, obj.threshold);
                         case 'gradient'
-                            mask = differenceEstimationFunctions.detectChange_gradient(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_gradient(I1_proc, I2_proc, obj.threshold);
                         case 'ssim'
-                            mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc, obj.threshold);
                         case 'dog'
-                            mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, obj.threshold);
                         case 'pca'
-                            mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, obj.threshold);
                         case 'temporal_analysis'
-                            mask = differenceEstimationFunctions.detectChange_temporal(filteredImages, i, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_temporal(filteredImages, i, obj.threshold);
                         case 'texture_change'
-                            mask = differenceEstimationFunctions.detectChange_texture(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_texture(I1_proc, I2_proc, obj.threshold);
                         case 'edge_evolution'
-                            mask = differenceEstimationFunctions.detectChange_edge(I1_proc, I2_proc, obj.threshold, true);
+                            mask = differenceEstimationFunctions.detectChange_edge(I1_proc, I2_proc, obj.threshold);
                         otherwise
                             error('Unknown method "%s"', currentMethod);
                     end
@@ -702,12 +636,12 @@ classdef differenceEstimationFunctions < handle
             % Determine detection methods and parameters based on environment type
 
             switch lower(type)
-                case 'urban'
+                case 'comb. urban'
                     % Urban environments: emphasize geometric structures and edges
                     methods = {'gradient', 'edge_evolution'};
                     methodWeights = [0.7, 0.3]; % Primary: gradient, Secondary: edge evolution
 
-                case 'natural'
+                case 'comb. natural'
                     % Natural environments: emphasize texture and smooth changes
                     methods = {'ssim', 'gradient'};
                     methodWeights = [0.5, 0.5]; % Primary: texture, Secondary: basic difference
