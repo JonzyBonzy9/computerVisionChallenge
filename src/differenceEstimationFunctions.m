@@ -516,6 +516,7 @@ classdef differenceEstimationFunctions < handle
                             error('Unknown method "%s"', currentMethod);
                     end
                     % Resize mask to match original image size
+                    mask(mask < obj.threshold) = 0; % Apply thresholding
                     mask = imresize(mask, size(filteredMasks{i}), 'nearest');
                     pairMasks{methodIdx} = double(mask) * weight; % Apply method weight to mask
                 end

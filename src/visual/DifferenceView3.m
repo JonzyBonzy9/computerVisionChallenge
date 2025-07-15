@@ -1741,8 +1741,21 @@ classdef DifferenceView3 < handle
             cb.Location = 'eastoutside';
         end
         function clearAxes(~, axes)
+            % Find and delete all colorbars associated with the axes
             cb = findall(axes, 'Type', 'ColorBar');
             delete(cb);
+
+            % Also search for colorbars in the parent figure (in case they're attached to the figure)
+            fig = ancestor(axes, 'figure');
+            if ~isempty(fig)
+                figColorBars = findall(fig, 'Type', 'ColorBar');
+                % Only delete colorbars that are associated with our axes
+                for i = 1:length(figColorBars)
+                    if isequal(figColorBars(i).Axes, axes)
+                        delete(figColorBars(i));
+                    end
+                end
+            end
 
             % Now clear the axes as usual
             cla(axes);
