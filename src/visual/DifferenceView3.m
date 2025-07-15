@@ -309,7 +309,7 @@ classdef DifferenceView3 < handle
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
                 'algorithm', 'ABS+GRAD+PCA(50/20/30)', ...         % Gradient + edge detection for buildings
-                'threshold', 0.2, ...                    % 0.2 threshold for clear changes
+                'threshold', 0.3, ...                    % 0.2 threshold for clear changes
                 'blockSize', 1, ...                      % 1 pixel block size for fine detail
                 'areaMinPercent', 0.0006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
                 'areaMaxPercent', 12.0, ...              % 12% max area for large structures
@@ -318,8 +318,8 @@ classdef DifferenceView3 < handle
 
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.natural = struct(...
-                'algorithm', 'absdiff', ...       % SSIM + gradient for natural features
-                'threshold', 0.15, ...                   % 0.15 threshold (more sensitive for natural changes)
+                'algorithm', 'ABS+GRAD+SSIM(40/30/30)', ...       % SSIM + gradient for natural features
+                'threshold', 0.056, ...                   % 0.15 threshold (more sensitive for natural changes)
                 'blockSize', 3, ...                      % 3 pixel block size for organic textures
                 'areaMinPercent', 0.06, ...               % 6% minimum area (larger organic features)
                 'areaMaxPercent', 60.0, ...              % 60% max area for natural formations
