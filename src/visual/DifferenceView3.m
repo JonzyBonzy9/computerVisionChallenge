@@ -148,7 +148,7 @@ classdef DifferenceView3 < handle
             % Get image dimensions from the overlay class
             obj.currentImageSize = size(obj.App.OverlayClass.imageArray{1}.data, [1, 2]);
             obj.totalPixels = obj.currentImageSize(1) * obj.currentImageSize(2);
-            obj.updateAreaLabels();
+            obj.updateAreaSliderLimits();
 
             obj.update();
             obj.onCustomParameterChanged();
@@ -294,7 +294,7 @@ classdef DifferenceView3 < handle
 
             obj.ChangeTypePresets.scale.medium = struct(...
                 'blockSizePixels', 1, ...         % 1 pixel block size
-                'areaMinPercent', 0.006, ...      % 0.006% minimum (10 pixels for 1570x1064)
+                'areaMinPercent', 0.0006, ...      % 0.006% minimum (10 pixels for 1570x1064)
                 'areaMaxPercent', 12.0);          % 12% maximum (200,000 pixels for 1570x1064)
 
             obj.ChangeTypePresets.scale.large = struct(...
@@ -308,18 +308,18 @@ classdef DifferenceView3 < handle
 
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
-                'algorithm', 'GRAD+EDGE(70/30)', ...         % Gradient + edge detection for buildings
-                'threshold', 0.2, ...                    % 0.2 threshold for clear changes
+                'algorithm', 'ABS+GRAD+PCA(50/20/30)', ...         % Gradient + edge detection for buildings
+                'threshold', 0.3, ...                    % 0.2 threshold for clear changes
                 'blockSize', 1, ...                      % 1 pixel block size for fine detail
-                'areaMinPercent', 0.006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
+                'areaMinPercent', 0.0006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
                 'areaMaxPercent', 12.0, ...              % 12% max area for large structures
                 'temporalFilter', 'fast', ...            % Fast temporal processing for urban changes
                 'scale', 'medium');                      % Medium spatial scale
 
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.natural = struct(...
-                'algorithm', 'absdiff', ...       % SSIM + gradient for natural features
-                'threshold', 0.15, ...                   % 0.15 threshold (more sensitive for natural changes)
+                'algorithm', 'ABS+GRAD+SSIM(40/30/30)', ...       % SSIM + gradient for natural features
+                'threshold', 0.056, ...                   % 0.15 threshold (more sensitive for natural changes)
                 'blockSize', 3, ...                      % 3 pixel block size for organic textures
                 'areaMinPercent', 0.06, ...               % 6% minimum area (larger organic features)
                 'areaMaxPercent', 60.0, ...              % 60% max area for natural formations
@@ -556,7 +556,8 @@ classdef DifferenceView3 < handle
             obj.AreaMinLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.AreaMinSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', sqrt(0.006));
+            obj.AreaMinSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', sqrt(0.006), ...
+                'Tooltip', 'Minimum change area (quadratic scale: 0% to 5% of image)');
             obj.AreaMinSlider.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
@@ -565,16 +566,9 @@ classdef DifferenceView3 < handle
             obj.AreaMaxLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.AreaMaxSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', sqrt(12));
+            obj.AreaMaxSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', sqrt(12), ...
+                'Tooltip', 'Maximum change area (quadratic scale: 0% to 100% of image)');
             obj.AreaMaxSlider.Layout.Row = advancedRow;
-
-            % Min slider: Clean progression from 0% to 8% with good visual spacing
-            obj.AreaMinSlider.MajorTicks = [0, sqrt(0.1), sqrt(0.5), sqrt(1), sqrt(2), sqrt(4), sqrt(9)];
-            obj.AreaMinSlider.MajorTickLabels = ["0%", "0.1%", "0.5%", "1%", "2%", "4%", "9%"];
-
-            % Max slider: Clean progression from 0% to 100% with logical breakpoints
-            obj.AreaMaxSlider.MajorTicks = [0, sqrt(1), sqrt(5), sqrt(10), sqrt(25), sqrt(50), sqrt(100)];
-            obj.AreaMaxSlider.MajorTickLabels = ["0%", "1%", "5%", "10%", "25%", "50%", "100%"];
 
             % === VISUALIZATION TAB ===
             obj.visualizationTab = uitab(obj.controlTabGroup, 'Title', 'Visualization');
@@ -820,8 +814,7 @@ classdef DifferenceView3 < handle
                 algorithmType = obj.AlgorithmTypeDropdown.Value;
                 obj.updateParameterLabelsWithPresetInfo('Custom', scale, algorithmType);
             end
-        end
-        function onEnvironmentPresetChanged(obj)
+        end        function onEnvironmentPresetChanged(obj)
             % Handle environment preset selection
             preset = obj.EnvironmentPresetDropdown.Value;
 
@@ -1644,6 +1637,30 @@ classdef DifferenceView3 < handle
             percentage = (pixels / obj.totalPixels) * 100;
             quadValue = sqrt(percentage);
             return;
+        end
+
+        function updateAreaSliderLimits(obj)
+            % Update area slider limits based on quadratic percentage scale
+            % Min slider: 0% to 5% (quadratic scale)
+            % Max slider: 0% to 100% (quadratic scale)
+
+            % Set fixed limits for quadratic percentage scale
+            obj.AreaMinSlider.Limits = [0, sqrt(5)];    % 0% to 5%
+            obj.AreaMaxSlider.Limits = [0, sqrt(100)];  % 0% to 100%
+
+            % Update tooltips with current image info
+            if obj.totalPixels > 0
+                obj.AreaMinSlider.Tooltip = sprintf('Min area: 0%% to 5%% of image (0 to %.0f pixels) - Image: %dx%d', ...
+                    0.05 * obj.totalPixels, obj.currentImageSize(1), obj.currentImageSize(2));
+                obj.AreaMaxSlider.Tooltip = sprintf('Max area: 0%% to 100%% of image (0 to %.0f pixels) - Image: %dx%d', ...
+                    obj.totalPixels, obj.currentImageSize(1), obj.currentImageSize(2));
+            else
+                obj.AreaMinSlider.Tooltip = 'Min area: 0% to 5% of image (quadratic scale)';
+                obj.AreaMaxSlider.Tooltip = 'Max area: 0% to 100% of image (quadratic scale)';
+            end
+
+            % Update labels to show current values
+            obj.updateAreaLabels();
         end
 
         function updateAreaLabels(obj)
