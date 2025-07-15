@@ -208,7 +208,11 @@ classdef OverlayView < handle
 
             % Clear the checkboxes array to prevent accessing deleted objects
             obj.Checkboxes = matlab.ui.control.CheckBox.empty;
-            % TODO: reset confusion matrix, low priority
+
+            % Clear the heatmap panel by deleting all its children
+            if isvalid(obj.HeatmapPanel) && ~isempty(obj.HeatmapPanel.Children)
+                delete(obj.HeatmapPanel.Children);
+            end
         end
 
         function printStatus(obj, fmt, varargin)
