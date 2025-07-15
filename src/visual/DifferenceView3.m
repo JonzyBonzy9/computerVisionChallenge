@@ -66,8 +66,6 @@ classdef DifferenceView3 < handle
         Checkboxes          matlab.ui.control.CheckBox
 
         % Internal state and data
-        currentResults
-        currentMasks
         group
         isUpdatingPreset logical  % Flag to prevent recursive updates
         currentVisualizationMode string  % 'Individual' or 'Combined'
@@ -122,12 +120,11 @@ classdef DifferenceView3 < handle
 
         %% Interface methods for the main app
         function onImLoad(obj)
+            % Called when new images are loaded - reset the view completely
             if ~obj.App.dataLoaded
                 return
             end
             obj.controlTabGroup.SelectedTab = obj.visualizationTab;
-            % Called when new images are loaded - reset the view completely
-            obj.currentMasks = [];
 
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
@@ -136,11 +133,11 @@ classdef DifferenceView3 < handle
             title(obj.MainAxes, 'Change Detection Visualization');
             title(obj.AnalysisAxes, 'Change Analysis');
 
-            % Reset parameters to defaults (logarithmic scale for areas)
-            obj.ThresholdSlider.Value = 0.2;    % 0.2 threshold (within [0, 1] range)
-            obj.BlockSizeSlider.Value = 1;     % 3 pixels block size (within [1, 100] range)
-            obj.AreaMinSlider.Value = 2;       % Log scale: 10^2 = 100 pixels
-            obj.AreaMaxSlider.Value = 4;       % Log scale: 10^4 = 10000 pixels
+            % Reset parameters to defaults (quadratic scale for areas)
+            obj.ThresholdSlider.Value = 0.2;        % 0.2 threshold (within [0, 1] range)
+            obj.BlockSizeSlider.Value = 1;          % 1 pixel block size (within [1, 100] range)
+            obj.AreaMinSlider.Value = sqrt(0.006);  % Quadratic scale: sqrt(0.006%) = ~0.077
+            obj.AreaMaxSlider.Value = sqrt(12);     % Quadratic scale: sqrt(12%) = ~3.464
 
             % Reset two-dimensional presets
             obj.EnvironmentPresetDropdown.Value = 'Custom';
@@ -288,125 +285,55 @@ classdef DifferenceView3 < handle
             % Parameters use mix of percentage and absolute values for optimal control
             obj.ChangeTypePresets = struct();
 
-            % SCALE dimension (affects block size in pixels and area constraints in pixels)
+            % SCALE dimension (affects block size in pixels and area constraints in percentage)
             obj.ChangeTypePresets.scale = struct();
             obj.ChangeTypePresets.scale.small = struct(...
-                'blockSizePixels', 1, ...       % 1 pixel block size
-                'areaMinPixels', 1, ...         % 1 pixel minimum
-                'areaMaxPixels', 100);          % 100 pixels maximum
+                'blockSizePixels', 1, ...         % 1 pixel block size
+                'areaMinPercent', 0.00006, ...     % 0.0006% minimum (1 pixel for 1570x1064)
+                'areaMaxPercent', 0.06);          % 0.06% maximum (100 pixels for 1570x1064)
 
             obj.ChangeTypePresets.scale.medium = struct(...
-                'blockSizePixels', 1, ...       % 3 pixel block size
-                'areaMinPixels', 100, ...        % 10 pixels minimum
-                'areaMaxPixels', 200000);         % 1000 pixels maximum
+                'blockSizePixels', 1, ...         % 1 pixel block size
+                'areaMinPercent', 0.0006, ...      % 0.006% minimum (10 pixels for 1570x1064)
+                'areaMaxPercent', 12.0);          % 12% maximum (200,000 pixels for 1570x1064)
 
             obj.ChangeTypePresets.scale.large = struct(...
-                'blockSizePixels', 10, ...      % 10 pixel block size
-                'areaMinPixels', 1000, ...       % 100 pixels minimum
-                'areaMaxPixels', 100000000);        % 10000 pixels maximum
+                'blockSizePixels', 10, ...        % 10 pixel block size
+                'areaMinPercent', 0.06, ...       % 0.06% minimum (100 pixels for 1570x1064)
+                'areaMaxPercent', 60.0);          % 60% maximum (large natural formations)
 
-            % ALGORITHM/TYPE dimension (combines detection method - temporal filter removed from algorithm control)
-            obj.ChangeTypePresets.algorithmType = struct();
-
-            % THRESHOLD dimension (links to environment presets for threshold values)
-            obj.ChangeTypePresets.threshold = struct();
-            obj.ChangeTypePresets.threshold.urban = struct('thresholdValue', 0.2, 'presetName', 'urban');
-            obj.ChangeTypePresets.threshold.natural = struct('thresholdValue', 0.15, 'presetName', 'natural');
-            obj.ChangeTypePresets.threshold.mixed = struct('thresholdValue', 0.05, 'presetName', 'mixed');
-
-            % Basic algorithms (temporal filter now independent)
-            obj.ChangeTypePresets.algorithmType.absdiff = struct(...
-                'method', 'absdiff', ...               % Absolute difference
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.gradient = struct(...
-                'method', 'gradient', ...              % Gradient-based detection
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.ssim = struct(...
-                'method', 'ssim', ...                  % Structural similarity
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.dog = struct(...
-                'method', 'dog', ...                   % Difference of Gaussians
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.pca = struct(...
-                'method', 'pca', ...                   % Principal component analysis
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.temporal_analysis = struct(...
-                'method', 'temporal_analysis', ...     % Temporal sequence analysis
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.texture_change = struct(...
-                'method', 'texture_change', ...        % Texture-based detection
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            obj.ChangeTypePresets.algorithmType.edge_evolution = struct(...
-                'method', 'edge_evolution', ...        % Edge evolution tracking
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            % Environment-optimized algorithms (temporal filter now independent)
-            obj.ChangeTypePresets.algorithmType.urban_optimized = struct(...
-                'method', 'gradient', ...               % Good for detecting geometric structures
-                'thresholdModifier', 0.9, ...           % Slightly more sensitive for edges
-                'areaModifier', 1.0);                   % No area modification
-
-            obj.ChangeTypePresets.algorithmType.natural_optimized = struct(...
-                'method', 'texture_change', ...         % Good for texture and organic changes
-                'thresholdModifier', 1.3, ...           % Less sensitive to texture noise
-                'areaModifier', 1.8);                   % Prefer larger connected areas
-
-            obj.ChangeTypePresets.algorithmType.mixed_optimized = struct(...
-                'method', 'absdiff', ...               % General purpose method
-                'thresholdModifier', 1.0, ...          % No threshold modification
-                'areaModifier', 1.0);                  % No area modification
-
-            % Legacy presets for backwards compatibility (now deprecated)
-            obj.ChangeTypePresets.legacy = struct();
-            obj.ChangeTypePresets.legacy.fast = struct('threshold', 0.1, 'blockSize', 1, 'areaMin', 10, 'areaMax', 100);
-            obj.ChangeTypePresets.legacy.slow = struct('threshold', 0.3, 'blockSize', 3, 'areaMin', 50, 'areaMax', 500);
 
             % Environment presets that control multiple parameters at once
             obj.EnvironmentPresets = struct();
 
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
-                'algorithm', 'ssim', ...             % Simple difference detection for buildings
+                'algorithm', 'ABS+GRAD+PCA(50/20/30)', ...         % Gradient + edge detection for buildings
                 'threshold', 0.2, ...                    % 0.2 threshold for clear changes
-                'blockSize', 1, ...                     % 1 pixel block size for fine detail
-                'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
-                'areaMaxPercent', 200000, ...                % 4% max area for large structures
-                'temporalFilter', 'fast', ...           % Fast temporal processing for urban changes
-                'scale', 'medium');                     % Medium spatial scale
+                'blockSize', 1, ...                      % 1 pixel block size for fine detail
+                'areaMinPercent', 0.0006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
+                'areaMaxPercent', 12.0, ...              % 12% max area for large structures
+                'temporalFilter', 'fast', ...            % Fast temporal processing for urban changes
+                'scale', 'medium');                      % Medium spatial scale
 
             % Natural preset: optimized for natural environments with organic changes
             obj.EnvironmentPresets.natural = struct(...
-                'algorithm', 'ssim', ...      % Texture-based for natural features
-                'threshold', 0.15, ...                    % 0.15 threshold (more sensitive for natural changes)
-                'blockSize', 3, ...                     % 5 pixel block size for organic textures
-                'areaMinPixels', 100000, ...               % 500 pixels minimum area (larger organic features)
-                'areaMaxPercent', 100000000, ...                % 8% max area for natural formations
-                'temporalFilter', 'medium', ...         % Medium temporal processing for gradual changes
-                'scale', 'large');                      % Large spatial scale for natural features
+                'algorithm', 'absdiff', ...       % SSIM + gradient for natural features
+                'threshold', 0.15, ...                   % 0.15 threshold (more sensitive for natural changes)
+                'blockSize', 3, ...                      % 3 pixel block size for organic textures
+                'areaMinPercent', 0.06, ...               % 6% minimum area (larger organic features)
+                'areaMaxPercent', 60.0, ...              % 60% max area for natural formations
+                'temporalFilter', 'medium', ...          % Medium temporal processing for gradual changes
+                'scale', 'large');                       % Large spatial scale for natural features
 
             obj.EnvironmentPresets.mixed = struct(...
-                'algorithm', 'gradient', ...             % Simple difference detection for buildings
-                'threshold', 0.05, ...                    % 0.05 threshold for clear changes
-                'blockSize', 2, ...                     % 1 pixel block size for fine detail
-                'areaMinPixels', 100, ...               % 105 pixels minimum area (0.0029% for large images)
-                'areaMaxPercent', 50000, ...                % 4% max area for large structures
-                'temporalFilter', 'fast', ...           % Fast temporal processing for urban changes
-                'scale', 'medium');                     % Medium spatial scale
+                'algorithm', 'absdiff', ...     % Combined approach for mixed environments
+                'threshold', 0.05, ...                   % 0.05 threshold for sensitive detection
+                'blockSize', 2, ...                      % 2 pixel block size for balanced detail
+                'areaMinPercent', 0.006, ...             % 0.006% minimum area
+                'areaMaxPercent', 3.0, ...               % 3% max area for mixed structures
+                'temporalFilter', 'fast', ...            % Fast temporal processing
+                'scale', 'medium');                      % Medium spatial scale
         end
 
         function createMainLayout(obj)
@@ -624,23 +551,23 @@ classdef DifferenceView3 < handle
             obj.BlockSizeSlider.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            % Area Min (logarithmic scale - will be updated based on image size)
-            obj.AreaMinLabel = uilabel(advancedGrid, 'Text', 'Min Area: 100 pixels');
+            % Area Min (quadratic scale: 0% to 5%)
+            obj.AreaMinLabel = uilabel(advancedGrid, 'Text', 'Min Area: 0.006%');
             obj.AreaMinLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.AreaMinSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', 2, ...
-                'Tooltip', 'Minimum change area (logarithmic scale: 1 pixel to 10% of image)');
+            obj.AreaMinSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMin, 'Value', sqrt(0.006), ...
+                'Tooltip', 'Minimum change area (quadratic scale: 0% to 5% of image)');
             obj.AreaMinSlider.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            % Area Max (logarithmic scale - will be updated based on image size)
-            obj.AreaMaxLabel = uilabel(advancedGrid, 'Text', 'Max Area: 10000 pixels');
+            % Area Max (quadratic scale: 0% to 100%)
+            obj.AreaMaxLabel = uilabel(advancedGrid, 'Text', 'Max Area: 12%');
             obj.AreaMaxLabel.Layout.Row = advancedRow;
             advancedRow = advancedRow + 1;
 
-            obj.AreaMaxSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', 4, ...
-                'Tooltip', 'Maximum change area (logarithmic scale: 10 pixels to 50% of image)');
+            obj.AreaMaxSlider = uislider(advancedGrid, 'Limits', differenceEstimationFunctions.value_range_areaMax, 'Value', sqrt(12), ...
+                'Tooltip', 'Maximum change area (quadratic scale: 0% to 100% of image)');
             obj.AreaMaxSlider.Layout.Row = advancedRow;
 
             % === VISUALIZATION TAB ===
@@ -923,6 +850,10 @@ classdef DifferenceView3 < handle
                 obj.ScaleDropdown.Value = presetConfig.scale;
                 obj.onPresetDimensionChanged();  % Update sliders based on scale
 
+                % Apply area settings (percentage values)
+                obj.AreaMinSlider.Value = sqrt(presetConfig.areaMinPercent);
+                obj.AreaMaxSlider.Value = sqrt(presetConfig.areaMaxPercent);
+
                 % Update all labels to show preset values
                 obj.updateParameterLabelsWithPresetInfo('Custom', presetConfig.scale, obj.AlgorithmTypeDropdown.Value);
                 obj.updateAreaLabels();
@@ -960,25 +891,25 @@ classdef DifferenceView3 < handle
             try
                 obj.isUpdatingPreset = true;
 
-                % Start with current slider values as base (block size now in pixels, areas in log scale)
+                % Start with current slider values as base (block size now in pixels, areas in quadratic scale)
                 blockSizePixels = obj.BlockSizeSlider.Value;    % Now absolute pixels (1-100)
-                areaMinLogValue = obj.AreaMinSlider.Value;      % Logarithmic scale
-                areaMaxLogValue = obj.AreaMaxSlider.Value;      % Logarithmic scale
+                areaMinQuadValue = obj.AreaMinSlider.Value;     % Quadratic scale
+                areaMaxQuadValue = obj.AreaMaxSlider.Value;     % Quadratic scale
 
-                % Apply SCALE dimension (affects block size in pixels and area in pixels)
+                % Apply SCALE dimension (affects block size in pixels and area in percentage)
                 if ~strcmp(scale, 'Custom')
                     scaleParams = obj.ChangeTypePresets.scale.(scale);
                     blockSizePixels = scaleParams.blockSizePixels;  % Now using pixel values
 
-                    % Convert pixel area values to logarithmic scale
-                    areaMinLogValue = obj.pixelsToLogArea(scaleParams.areaMinPixels);
-                    areaMaxLogValue = obj.pixelsToLogArea(scaleParams.areaMaxPixels);
+                    % Convert percentage area values to quadratic scale
+                    areaMinQuadValue = sqrt(scaleParams.areaMinPercent);
+                    areaMaxQuadValue = sqrt(scaleParams.areaMaxPercent);
                 end
 
                 % Update all UI elements with calculated values
                 obj.BlockSizeSlider.Value = blockSizePixels;    % Now using pixel values
-                obj.AreaMinSlider.Value = areaMinLogValue;      % Logarithmic scale
-                obj.AreaMaxSlider.Value = areaMaxLogValue;      % Logarithmic scale
+                obj.AreaMinSlider.Value = areaMinQuadValue;     % Quadratic scale
+                obj.AreaMaxSlider.Value = areaMaxQuadValue;     % Quadratic scale
 
                 % Update area labels to show pixel and percentage values
                 obj.updateAreaLabels();
@@ -991,9 +922,7 @@ classdef DifferenceView3 < handle
                 % Provide feedback about what was applied
                 appliedDimensions = {};
                 if ~strcmp(scale, 'Custom'), appliedDimensions{end+1} = sprintf('scale:%s', scale); end
-                if isfield(obj.ChangeTypePresets.algorithmType, algorithmType)
-                    appliedDimensions{end+1} = sprintf('algorithm:%s', algorithmType);
-                end
+                appliedDimensions{end+1} = sprintf('algorithm:%s', algorithmType);
 
                 if ~isempty(appliedDimensions)
                     obj.updateStatus(sprintf('Applied preset dimensions: %s', strjoin(appliedDimensions, ', ')));
@@ -1085,18 +1014,17 @@ classdef DifferenceView3 < handle
 
                 % Get parameters from the controls
                 algorithmType = obj.AlgorithmTypeDropdown.Value;
-                scale = obj.ScaleDropdown.Value;
                 temporalFilter = obj.TemporalFilterDropdown.Value;
                 thresholdValue = obj.ThresholdSlider.Value;    % Decimal (0-1)
                 blockSizePixels = obj.BlockSizeSlider.Value;     % Absolute pixels (1-100)
 
-                % Convert logarithmic area values to absolute pixel counts
-                absoluteAreaMin = obj.logAreaToPixels(obj.AreaMinSlider.Value);
-                absoluteAreaMax = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
+                % Convert quadratic area values to absolute pixel counts
+                absoluteAreaMin = obj.quadraticAreaToPixels(obj.AreaMinSlider.Value);
+                absoluteAreaMax = obj.quadraticAreaToPixels(obj.AreaMaxSlider.Value);
 
                 % Use calculateAdvanced method
-                obj.currentMasks = obj.App.DifferenceClass.calculateAdvanced(...
-                    selectedIndices, temporalFilter, algorithmType, thresholdValue, blockSizePixels, absoluteAreaMin, absoluteAreaMax);
+                obj.App.DifferenceClass.calculateAdvanced(...
+                    selectedIndices, temporalFilter, algorithmType, thresholdValue, blockSizePixels, absoluteAreaMin, absoluteAreaMax, @obj.updateStatus);
 
                 % update view
                 obj.CalculateButton.Enable = 'on';
@@ -1108,7 +1036,6 @@ classdef DifferenceView3 < handle
                 obj.updateAnalysisTab();
             catch exception
                 obj.updateStatus(['Calculation error: ' exception.message]);
-                obj.currentMasks = {};
                 obj.CalculateButton.Enable = 'on';
                 drawnow;
             end
@@ -1116,8 +1043,6 @@ classdef DifferenceView3 < handle
 
         function onClearPressed(obj)
             % Handle clear button press
-            obj.currentMasks = [];
-
             % Clear visualizations
             obj.clearAxes(obj.MainAxes);
             obj.clearAxes(obj.AnalysisAxes);
@@ -1407,9 +1332,6 @@ classdef DifferenceView3 < handle
                 % Blend images
                 empty = zeros(size(obj.App.OverlayClass.imageStack{group},1), size(obj.App.OverlayClass.imageStack{group},2), size(obj.App.OverlayClass.imageStack{group},3), 'like', obj.App.OverlayClass.imageStack{group});
 
-                % Always start by clearing the axes
-                cla(axes);
-
                 % Display blended images first (if checkbox is selected)
                 blended = empty;
                 if obj.ImagesCheckbox.Value
@@ -1423,13 +1345,17 @@ classdef DifferenceView3 < handle
                 if obj.MasksCheckbox.Value
                     maskCount = 1;
                     lastMaskIndice = obj.App.DifferenceClass.lastIndices(end);
+                    group_indices = sort(obj.App.OverlayClass.groups{group}); % sort for good measure
                     for i = 1:N
-                        indice = obj.App.OverlayClass.groups{group}(i);
+                        % iterate through images and find the corresponding mask if available
+                        indice = group_indices(i);
                         maskIndice = obj.App.DifferenceClass.lastIndices(maskCount);
                         if  maskIndice == indice && ~(maskIndice == lastMaskIndice)
+                            % mask is calculated, add
                             maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount);
                             maskCount = maskCount + 1;
                         elseif indice < lastMaskIndice && maskCount ~= 1
+                            % mask is not calculated, use the previous one
                             maskBlended = maskBlended + weights(i) * obj.App.DifferenceClass.maskStack(:,:,maskCount-1);
                         else
                             % No mask to add for this image (stays zero)
@@ -1671,22 +1597,22 @@ classdef DifferenceView3 < handle
                 obj.BlockSizeLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
             end
 
-            % Area Min - controlled by scale dimension only (now in pixels with logarithmic scale)
+            % Area Min - controlled by scale dimension only (now in percentage with quadratic scale)
             if ~strcmp(scale, 'Custom')
-                minPixels = obj.logAreaToPixels(obj.AreaMinSlider.Value);
+                minPixels = obj.quadraticAreaToPixels(obj.AreaMinSlider.Value);
                 minPercent = (minPixels / obj.totalPixels) * 100;
-                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.4f%%) [%s spatial]', minPixels, minPercent, scale);
+                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.3f%%) [%s spatial]', minPixels, minPercent, scale);
                 obj.AreaMinLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for spatial control
             else
                 obj.updateAreaLabels(); % Use the helper method for manual control
                 obj.AreaMinLabel.FontColor = [0.4, 0.4, 0.4]; % Dark gray for manual control
             end
 
-            % Area Max - controlled by scale dimension only (now in pixels with logarithmic scale)
+            % Area Max - controlled by scale dimension only (now in percentage with quadratic scale)
             if ~strcmp(scale, 'Custom')
-                maxPixels = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
+                maxPixels = obj.quadraticAreaToPixels(obj.AreaMaxSlider.Value);
                 maxPercent = (maxPixels / obj.totalPixels) * 100;
-                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.2f%%) [%s spatial]', maxPixels, maxPercent, scale);
+                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.1f%%) [%s spatial]', maxPixels, maxPercent, scale);
                 obj.AreaMaxLabel.FontColor = [0.2, 0.6, 0.8]; % Blue for spatial control
             else
                 % For manual control, the area min label was already updated above
@@ -1695,76 +1621,65 @@ classdef DifferenceView3 < handle
         end
 
         % Logarithmic area scaling helper methods
-        function pixels = logAreaToPixels(obj, logValue)
-            % Convert logarithmic slider value to absolute pixel count
-            % logValue range: 0-6 (representing 1 pixel to 50% of image)
-            % Formula: pixels = 10^logValue, clamped to [1, totalPixels/2]
-            pixels = round(obj.areaSliderLogBase ^ logValue);
-            pixels = max(1, min(floor(obj.totalPixels / 2), pixels));
+        function pixels = quadraticAreaToPixels(obj, quadValue)
+            % Convert quadratic slider value to absolute pixel count
+            % quadValue range: 0-sqrt(5) for min (0% to 5%), 0-sqrt(100) for max (0% to 100%)
+            % Formula: percentage = quadValue^2, then pixels = (percentage/100) * totalPixels
+            percentage = quadValue^2;
+            pixels = round((percentage / 100) * obj.totalPixels);
+            pixels = max(1, pixels); % Ensure at least 1 pixel
         end
 
-        function logValue = pixelsToLogArea(obj, pixels)
-            % Convert absolute pixel count to logarithmic slider value
-            % Ensure pixels is at least 1 and at most half the image
-            pixels = max(1, min(floor(obj.totalPixels / 25), pixels));
-            logValue = log(pixels) / log(obj.areaSliderLogBase);
-            logValue = max(0, min(6, logValue));  % Clamp to slider range
+        function quadValue = pixelsToQuadraticArea(obj, pixels)
+            % Convert absolute pixel count to quadratic slider value
+            % Ensure pixels is at least 1
+            pixels = max(1, pixels);
+            percentage = (pixels / obj.totalPixels) * 100;
+            quadValue = sqrt(percentage);
+            return;
         end
 
         function updateAreaSliderLimits(obj)
-            % Update area slider limits and tooltips based on current image size
+            % Update area slider limits based on quadratic percentage scale
+            % Min slider: 0% to 5% (quadratic scale)
+            % Max slider: 0% to 100% (quadratic scale)
+
+            % Set fixed limits for quadratic percentage scale
+            obj.AreaMinSlider.Limits = [0, sqrt(5)];    % 0% to 5%
+            obj.AreaMaxSlider.Limits = [0, sqrt(100)];  % 0% to 100%
+
+            % Update tooltips with current image info
             if obj.totalPixels > 0
-                % Calculate meaningful ranges
-                minPixels = 1;                              % Minimum: 1 pixel
-                maxPixels = floor(obj.totalPixels / 2);     % Maximum: 50% of image
-
-                % Convert to log scale
-                minLog = max(0, obj.pixelsToLogArea(minPixels));
-                maxLog = min(6, obj.pixelsToLogArea(maxPixels));
-
-                % Ensure we have at least some range
-                if maxLog <= minLog + 1
-                    minLog = 0;
-                    maxLog = 6;
-                end
-
-                % Update slider limits with some buffer
-                obj.AreaMinSlider.Limits = [minLog, maxLog - 0.5];  % Leave room for max slider
-                obj.AreaMaxSlider.Limits = [minLog + 0.5, maxLog];  % Ensure max > min
-
-                % Clamp current values to new limits
-                obj.AreaMinSlider.Value = max(obj.AreaMinSlider.Limits(1), min(obj.AreaMinSlider.Limits(2), obj.AreaMinSlider.Value));
-                obj.AreaMaxSlider.Value = max(obj.AreaMaxSlider.Limits(1), min(obj.AreaMaxSlider.Limits(2), obj.AreaMaxSlider.Value));
-
-                % Update tooltips with current image info
-                imgPercent = @(pix) (pix / obj.totalPixels) * 100;
-                obj.AreaMinSlider.Tooltip = sprintf('Min area: 1 pixel (%.4f%%) to %.0f pixels (%.1f%%) - Image: %dx%d', ...
-                    imgPercent(1), obj.logAreaToPixels(maxLog-0.5), imgPercent(obj.logAreaToPixels(maxLog-0.5)), obj.currentImageSize(1), obj.currentImageSize(2));
-                obj.AreaMaxSlider.Tooltip = sprintf('Max area: %.0f pixels (%.4f%%) to %.0f pixels (%.1f%%) - Image: %dx%d', ...
-                    obj.logAreaToPixels(minLog+0.5), imgPercent(obj.logAreaToPixels(minLog+0.5)), maxPixels, 50, obj.currentImageSize(1), obj.currentImageSize(2));
-
-                % Update labels to show current values
-                obj.updateAreaLabels();
+                obj.AreaMinSlider.Tooltip = sprintf('Min area: 0%% to 5%% of image (0 to %.0f pixels) - Image: %dx%d', ...
+                    0.05 * obj.totalPixels, obj.currentImageSize(1), obj.currentImageSize(2));
+                obj.AreaMaxSlider.Tooltip = sprintf('Max area: 0%% to 100%% of image (0 to %.0f pixels) - Image: %dx%d', ...
+                    obj.totalPixels, obj.currentImageSize(1), obj.currentImageSize(2));
             else
-                % Use default ranges if no image size available
-                obj.AreaMinSlider.Limits = [0, 5];
-                obj.AreaMaxSlider.Limits = [1, 6];
-                obj.AreaMinSlider.Tooltip = 'Min area: Logarithmic scale (load images to see exact ranges)';
-                obj.AreaMaxSlider.Tooltip = 'Max area: Logarithmic scale (load images to see exact ranges)';
+                obj.AreaMinSlider.Tooltip = 'Min area: 0% to 5% of image (quadratic scale)';
+                obj.AreaMaxSlider.Tooltip = 'Max area: 0% to 100% of image (quadratic scale)';
             end
+
+            % Update labels to show current values
+            obj.updateAreaLabels();
         end
 
         function updateAreaLabels(obj)
-            % Update area labels to show both pixels and percentage
+            % Update area labels to show both pixels and percentage (quadratic scale)
             if obj.totalPixels > 0
-                minPixels = obj.logAreaToPixels(obj.AreaMinSlider.Value);
-                maxPixels = obj.logAreaToPixels(obj.AreaMaxSlider.Value);
+                minPixels = obj.quadraticAreaToPixels(obj.AreaMinSlider.Value);
+                maxPixels = obj.quadraticAreaToPixels(obj.AreaMaxSlider.Value);
 
                 minPercent = (minPixels / obj.totalPixels) * 100;
                 maxPercent = (maxPixels / obj.totalPixels) * 100;
 
-                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.4f%%)', minPixels, minPercent);
-                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.2f%%)', maxPixels, maxPercent);
+                obj.AreaMinLabel.Text = sprintf('Min Area: %d pixels (%.3f%%)', minPixels, minPercent);
+                obj.AreaMaxLabel.Text = sprintf('Max Area: %d pixels (%.1f%%)', maxPixels, maxPercent);
+            else
+                % Fallback when no image is loaded
+                minPercent = obj.AreaMinSlider.Value^2;
+                maxPercent = obj.AreaMaxSlider.Value^2;
+                obj.AreaMinLabel.Text = sprintf('Min Area: %.3f%%', minPercent);
+                obj.AreaMaxLabel.Text = sprintf('Max Area: %.1f%%', maxPercent);
             end
         end
 
@@ -1846,14 +1761,14 @@ classdef DifferenceView3 < handle
             presetName = '';
             tolerance = 0.001; % Small tolerance for floating point comparison
 
-            thresholdPresets = obj.ChangeTypePresets.threshold;
-            presetFields = fieldnames(thresholdPresets);
+            presets = fieldnames(obj.EnvironmentPresets);
+            disp(presets)
 
-            for i = 1:length(presetFields)
-                presetField = presetFields{i};
-                presetThreshold = thresholdPresets.(presetField).thresholdValue;
+            for i = 1:length(presets)
+                presetField = presets{i};
+                presetThreshold = obj.EnvironmentPresets.(presetField).threshold;
                 if abs(thresholdValue - presetThreshold) < tolerance
-                    presetName = thresholdPresets.(presetField).presetName;
+                    presetName = presetField;
                     break;
                 end
             end

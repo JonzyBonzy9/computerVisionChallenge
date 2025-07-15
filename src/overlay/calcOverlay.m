@@ -239,7 +239,7 @@ classdef calcOverlay < handle
                 if ~all(found)
                     warning('Some group IDs were not found in imageIds.');
                 end
-                indexedGroups{i} = idxs(found);  % optionally keep only valid indices
+                indexedGroups{i} = sort(idxs(found));
             end
 
             obj.groups = indexedGroups;

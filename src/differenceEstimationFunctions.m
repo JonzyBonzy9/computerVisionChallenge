@@ -29,16 +29,16 @@ classdef differenceEstimationFunctions < handle
 
     properties (Constant)
         % define value ranges etc
-        valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution'};
+        valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution', 'ABS+GRAD+PCA(50/20/30)', 'SSIM+GRAD(50/50)', 'GRAD+EDGE(70/30)', 'ABS+GRAD+SSIM(40/30/30)', };
         valid_change_types = {'urban', 'natural', 'mixed'};
         valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
         value_range_threshold = [0, 1];
         value_range_blockSize = [0, 100];
-        value_range_areaMin = [0, 6];
-        value_range_areaMax = [1, 9];
+        value_range_areaMin = [0, sqrt(10)];      % Quadratic scale: 0% to 5%
+        value_range_areaMax = [0, sqrt(100)];
     end
 
-    methods
+    methods (Access = public)
         function obj = differenceEstimationFunctions(overlayClass)
             obj.overlay = overlayClass;
             obj.resultAvailable = false;
@@ -195,130 +195,6 @@ classdef differenceEstimationFunctions < handle
                     edgeIntensity = edgeIntensity + sum(edges(:)) / numel(edges);
                 end
                 edgeIntensity = edgeIntensity / length(obj.differenceMasks);
-            end
-        end
-
-        %% ===== Visualization Methods =====
-        function visualizationData = generateVisualization(obj, visualizationType, indices)
-            % Generate different types of visualizations
-            switch lower(visualizationType)
-                case 'heatmap'
-                    visualizationData = obj.createChangeHeatmap();
-                case 'overlay'
-                    visualizationData = obj.createOverlayVisualization(indices);
-                case 'difference_evolution'
-                    visualizationData = obj.createEvolutionVisualization();
-                case 'change_magnitude'
-                    visualizationData = obj.createMagnitudeVisualization();
-                case 'temporal_profile'
-                    visualizationData = obj.createTemporalProfile();
-                case 'change_timeline'
-                    visualizationData = obj.createTimelineVisualization(indices);
-                otherwise
-                    error('Unknown visualization type: %s', visualizationType);
-            end
-        end
-
-        function heatmapData = createChangeHeatmap(obj)
-            % Create intensity heatmap of changes
-            if isempty(obj.differenceMasks)
-                heatmapData = [];
-                return;
-            end
-
-            % Accumulate all changes
-            heatmapData = zeros(size(obj.differenceMasks{1}));
-            for i = 1:length(obj.differenceMasks)
-                heatmapData = heatmapData + double(obj.differenceMasks{i});
-            end
-
-            % Normalize to [0,1] range
-            if max(heatmapData(:)) > 0
-                heatmapData = heatmapData / max(heatmapData(:));
-            end
-        end
-
-        function overlayData = createOverlayVisualization(obj, indices)
-            % Create color-coded overlay of changes over time
-            if isempty(obj.differenceMasks)
-                overlayData = [];
-                return;
-            end
-
-            [h, w] = size(obj.differenceMasks{1});
-            overlayData = zeros(h, w, 3); % RGB overlay
-
-            colors = hot(length(obj.differenceMasks)); % Color map for time
-
-            for i = 1:length(obj.differenceMasks)
-                mask = obj.differenceMasks{i};
-                for c = 1:3
-                    overlayData(:,:,c) = overlayData(:,:,c) + mask * colors(i,c);
-                end
-            end
-
-            % Normalize
-            overlayData = overlayData / max(overlayData(:));
-        end
-
-        function evolutionData = createEvolutionVisualization(obj)
-            % Create visualization showing how changes evolve over time
-            evolutionData = struct();
-            evolutionData.changeMagnitude = zeros(1, length(obj.differenceMasks));
-            evolutionData.changeArea = zeros(1, length(obj.differenceMasks));
-
-            for i = 1:length(obj.differenceMasks)
-                mask = obj.differenceMasks{i};
-                evolutionData.changeMagnitude(i) = sum(mask(:));
-                evolutionData.changeArea(i) = sum(mask(:)) / numel(mask);
-            end
-        end
-
-        function magnitudeData = createMagnitudeVisualization(obj)
-            % Create visualization emphasizing change magnitude
-            if isempty(obj.differenceMasks)
-                magnitudeData = [];
-                return;
-            end
-
-            magnitudeData = zeros(size(obj.differenceMasks{1}));
-
-            for i = 1:length(obj.differenceMasks)
-                % Weight by position in sequence (later changes weighted more)
-                weight = i / length(obj.differenceMasks);
-                magnitudeData = magnitudeData + weight * double(obj.differenceMasks{i});
-            end
-        end
-
-        function profileData = createTemporalProfile(obj)
-            % Create temporal profile of changes
-            profileData = struct();
-            if isempty(obj.differenceMasks)
-                return;
-            end
-
-            profileData.timePoints = 1:length(obj.differenceMasks);
-            profileData.totalChange = zeros(1, length(obj.differenceMasks));
-            profileData.maxChange = zeros(1, length(obj.differenceMasks));
-            profileData.changeDistribution = cell(1, length(obj.differenceMasks));
-
-            for i = 1:length(obj.differenceMasks)
-                mask = obj.differenceMasks{i};
-                profileData.totalChange(i) = sum(mask(:));
-                profileData.maxChange(i) = max(mask(:));
-                profileData.changeDistribution{i} = mask;
-            end
-        end
-
-        function timelineData = createTimelineVisualization(obj, indices)
-            % Create timeline visualization with actual time indices
-            timelineData = struct();
-            timelineData.indices = indices(1:end-1); % Remove last index
-            timelineData.changeIntensity = zeros(1, length(obj.differenceMasks));
-            timelineData.changeMasks = obj.differenceMasks;
-
-            for i = 1:length(obj.differenceMasks)
-                timelineData.changeIntensity(i) = sum(obj.differenceMasks{i}(:));
             end
         end
     end
@@ -524,7 +400,7 @@ classdef differenceEstimationFunctions < handle
 
     %% ===== Extended Methods for Three-Dimensional Preset Calculation =====
     methods (Access = public)
-        function differenceMasks = calculateAdvanced(obj, indices, tempo, algorithm, threshold, blockSize, areaMin, areaMax)
+        function calculateAdvanced(obj, indices, tempo, algorithm, threshold, blockSize, areaMin, areaMax, dispFunc)
             % Calculate difference masks using three-dimensional preset system
             % Arguments:
             %   indices - image indices to process
@@ -534,6 +410,10 @@ classdef differenceEstimationFunctions < handle
             %   blockSize - spatial scale dimension (block size for preprocessing)
             %   areaMin - minimum area for change detection
             %   areaMax - maximum area for change detection
+
+            if nargin < 9
+                dispFunc = @(x) disp(x); % Default display function
+            end
 
             obj.lastIndices = indices;
 
@@ -562,6 +442,7 @@ classdef differenceEstimationFunctions < handle
             combinedMasks = cell(1, length(filteredImages)-1);
 
             for i = 1:length(filteredImages)-1
+                dispFunc(sprintf('Processing image pair %d/%d', i, length(filteredImages)-1));
                 I1 = filteredImages{i};
                 I2 = filteredImages{i+1};
 
@@ -619,6 +500,8 @@ classdef differenceEstimationFunctions < handle
                 rawMasks{i} = combinedMask;
             end
 
+            dispFunc('Initial masks calculated, proceeding with postprocessing...');
+
             % === STEP 4: Apply Area Filtering based on Scale ===
             for i = 1:length(rawMasks)
                 combinedMasks{i} = differenceEstimationFunctions.postprocessMask(rawMasks{i}, obj.areaMin, obj.areaMax);
@@ -627,7 +510,6 @@ classdef differenceEstimationFunctions < handle
             % === STEP 5: Apply Temporal Dimension Filtering ===
             obj.differenceMasks = obj.applyTemporalFiltering(combinedMasks, tempo, indices);
 
-            differenceMasks = obj.differenceMasks;
             obj.createImageStack();
             obj.resultAvailable = true;
         end
@@ -635,18 +517,21 @@ classdef differenceEstimationFunctions < handle
         function [methods, methodWeights] = determineTypeParameters(obj, type)
             % Determine detection methods and parameters based on environment type
 
-            switch lower(type)
-                case 'comb. urban'
+            switch type
+                case 'ABS+GRAD+PCA(50/20/30)'
+                    methods = {'absdiff', 'gradient', 'pca'};
+                    methodWeights = [0.5, 0.2, 0.3]; % Primary: absolute difference, Secondary: gradient and PCA
+                case 'GRAD+EDGE(70/30)'
                     % Urban environments: emphasize geometric structures and edges
                     methods = {'gradient', 'edge_evolution'};
                     methodWeights = [0.7, 0.3]; % Primary: gradient, Secondary: edge evolution
 
-                case 'comb. natural'
+                case 'SSIM+GRAD(50/50)'
                     % Natural environments: emphasize texture and smooth changes
                     methods = {'ssim', 'gradient'};
                     methodWeights = [0.5, 0.5]; % Primary: texture, Secondary: basic difference
 
-                case 'mixed'
+                case 'ABS+GRAD+SSIM(40/30/30)'
                     % Mixed environments: balanced approach with multiple methods
                     methods = {'absdiff', 'gradient', 'ssim'};
                     methodWeights = [0.4, 0.3, 0.3]; % Balanced combination
