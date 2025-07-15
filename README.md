@@ -4,7 +4,7 @@ This is the README for our repo of the computer vision challenge in the summer t
 
 # MATLAB requirements
 
-- MATLAB R2025a
+- MATLAB R2025a (in darkmode to guarantee all elements can be seen!!)
 - Image Processing Toolbox
 - Computer Vision Toolbox
 - Image Aquisition Toolbox
