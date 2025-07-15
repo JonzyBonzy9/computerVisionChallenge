@@ -288,8 +288,9 @@ classdef OverlayView < handle
                 % --- update Groups ---
                 obj.updateGroups(obj.App.OverlayClass.groups);
 
-                % --- reset difference class, to accomodate for the new overlay
+                % reset difference class, to accomodate for the new overlay
                 obj.App.DifferenceClass.reset();
+                obj.App.Views.Difference.update();
             catch ME
                 disp(ME.message);
                 uialert(obj.App.UIFigure, ...
