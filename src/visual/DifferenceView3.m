@@ -204,6 +204,7 @@ classdef DifferenceView3 < handle
             obj.updateVisualization();
         end
 
+        %% update helper functions
         function updateCheckboxes(obj)
             % Clear old checkboxes from UI and memory
             delete(obj.CheckboxGrid.Children);
@@ -280,6 +281,7 @@ classdef DifferenceView3 < handle
             obj.MaskSliderAxes.XTickLabel = dates;
         end
 
+        %% Presets
         function initializePresets(obj)
             % Define two-dimensional preset system: Scale × Algorithm/Type
             % Parameters use mix of percentage and absolute values for optimal control
@@ -336,6 +338,7 @@ classdef DifferenceView3 < handle
                 'scale', 'Custom');                      % Medium spatial scale
         end
 
+        %% View mounting
         function createMainLayout(obj)
             % Create main grid layout with visualization area and control panel
             obj.Grid = uigridlayout(obj.App.MainContentPanel, [1, 2]);
@@ -738,6 +741,55 @@ classdef DifferenceView3 < handle
             obj.RefreshGroupButton.ButtonPushedFcn = @(src, event) obj.onGroupChanged();
         end
 
+        %% UI callbacks
+        function onCalculatePressed(obj)
+            % Handle calculate button press
+            % this triggers the calculation in the backend
+            if ~obj.App.dataLoaded
+                return
+            end
+            try
+                obj.updateStatus('Calculating changes...');
+                obj.CalculateButton.Enable = 'off';
+
+                % Get selected images
+                selectedIndices = obj.getSelectedImageIndices();
+                obj.updateStatus(sprintf('Processing %d images with advanced calculation system', length(selectedIndices)));
+                if length(selectedIndices) < 2
+                    obj.updateStatus('Error: Select at least 2 images for comparison');
+                    obj.CalculateButton.Enable = 'on';
+                    return;
+                end
+
+                % Get parameters from the controls
+                algorithmType = obj.AlgorithmTypeDropdown.Value;
+                temporalFilter = obj.TemporalFilterDropdown.Value;
+                thresholdValue = obj.ThresholdSlider.Value;    % Decimal (0-1)
+                blockSizePixels = obj.BlockSizeSlider.Value;     % Absolute pixels (1-100)
+
+                % Convert quadratic area values to absolute pixel counts
+                absoluteAreaMin = obj.quadraticAreaToPixels(obj.AreaMinSlider.Value);
+                absoluteAreaMax = obj.quadraticAreaToPixels(obj.AreaMaxSlider.Value);
+
+                % Use calculateAdvanced method
+                obj.App.DifferenceClass.calculateAdvanced(...
+                    selectedIndices, temporalFilter, algorithmType, thresholdValue, blockSizePixels, absoluteAreaMin, absoluteAreaMax, @obj.updateStatus);
+
+                % update view
+                obj.CalculateButton.Enable = 'on';
+                obj.currentVisualizationMode = "Combined";
+                obj.CombinedModeButton.Value = true;
+                obj.IndividualModeButton.Value = false;
+                obj.onVisualizationChanged();
+                obj.update();
+                obj.updateAnalysisTab();
+            catch exception
+                obj.updateStatus(['Calculation error: ' exception.message]);
+                obj.CalculateButton.Enable = 'on';
+                drawnow;
+            end
+        end
+
         function onAlgorithmTypeChanged(obj)
             % Handle algorithm/type change
             algorithmType = obj.AlgorithmTypeDropdown.Value;
@@ -984,7 +1036,9 @@ classdef DifferenceView3 < handle
             if obj.App.dataLoaded
                 obj.updateVisualization();
             end
-        end        function onCustomParameterChanged(obj)
+        end
+
+        function onCustomParameterChanged(obj)
             % Legacy function - now handled by specific parameter change functions
             % This function is kept for compatibility but may be removed in future versions
             if ~obj.isUpdatingPreset
@@ -1001,67 +1055,6 @@ classdef DifferenceView3 < handle
                 obj.updateVisualization();
             end
         end
-
-        function onCalculatePressed(obj)
-            % Handle calculate button press
-            if ~obj.App.dataLoaded
-                return
-            end
-            try
-                obj.updateStatus('Calculating changes...');
-                obj.CalculateButton.Enable = 'off';
-
-                % Get selected images
-                selectedIndices = obj.getSelectedImageIndices();
-                obj.updateStatus(sprintf('Processing %d images with advanced calculation system', length(selectedIndices)));
-                if length(selectedIndices) < 2
-                    obj.updateStatus('Error: Select at least 2 images for comparison');
-                    obj.CalculateButton.Enable = 'on';
-                    return;
-                end
-
-                % Get parameters from the controls
-                algorithmType = obj.AlgorithmTypeDropdown.Value;
-                temporalFilter = obj.TemporalFilterDropdown.Value;
-                thresholdValue = obj.ThresholdSlider.Value;    % Decimal (0-1)
-                blockSizePixels = obj.BlockSizeSlider.Value;     % Absolute pixels (1-100)
-
-                % Convert quadratic area values to absolute pixel counts
-                absoluteAreaMin = obj.quadraticAreaToPixels(obj.AreaMinSlider.Value);
-                absoluteAreaMax = obj.quadraticAreaToPixels(obj.AreaMaxSlider.Value);
-
-                % Use calculateAdvanced method
-                obj.App.DifferenceClass.calculateAdvanced(...
-                    selectedIndices, temporalFilter, algorithmType, thresholdValue, blockSizePixels, absoluteAreaMin, absoluteAreaMax, @obj.updateStatus);
-
-                % update view
-                obj.CalculateButton.Enable = 'on';
-                obj.currentVisualizationMode = "Combined";
-                obj.CombinedModeButton.Value = true;
-                obj.IndividualModeButton.Value = false;
-                obj.onVisualizationChanged();
-                obj.update();
-                obj.updateAnalysisTab();
-            catch exception
-                obj.updateStatus(['Calculation error: ' exception.message]);
-                obj.CalculateButton.Enable = 'on';
-                drawnow;
-            end
-        end
-
-        function onClearPressed(obj)
-            % Handle clear button press
-            % Clear visualizations
-            obj.clearAxes(obj.MainAxes);
-            obj.clearAxes(obj.AnalysisAxes);
-
-            title(obj.MainAxes, 'Change Detection Visualization');
-            title(obj.AnalysisAxes, 'Change Analysis');
-
-            obj.updateStatus('Results cleared');
-        end
-
-        % Note: onToggleImageSelection removed - using tabbed interface now
 
         function onGroupChanged(obj)
             if ~obj.App.dataLoaded
@@ -1098,6 +1091,28 @@ classdef DifferenceView3 < handle
             obj.updateStatus('All selections cleared');
         end
 
+        function onDisplayOptionsChanged(obj)
+            % Handle changes to image/mask display checkboxes (immediate update)
+            if obj.App.dataLoaded
+                obj.updateVisualization();
+            end
+        end
+
+        function onSigmaSliderChanged(obj)
+            % Handle changes to sigma slider for Gaussian blending
+            % Convert log slider value to actual sigma (like TimeSliderOverlay)
+            obj.sigma = 10^(obj.SigmaSlider.Value);
+
+            % Update label to show current sigma value
+            obj.SigmaLabel.Text = sprintf('Blend Amount: %.1f', obj.sigma);
+
+            % Update visualization immediately if in Individual mode
+            if obj.App.dataLoaded && strcmp(obj.currentVisualizationMode, 'Individual')
+                obj.updateVisualization();
+            end
+        end
+
+        %% functions creating visualizations
         function updateVisualization(obj)
             if ~obj.App.dataLoaded
                 return
@@ -1136,7 +1151,16 @@ classdef DifferenceView3 < handle
             end
         end
 
-        %% combined display functions
+        function updateAnalysisTab(obj)
+            % Update the analysis tab with detailed analysis
+            if ~obj.App.dataLoaded
+                return;
+            end
+
+            % Use the new difference evolution display method
+            obj.displayDifferenceEvolution(obj.AnalysisAxes);
+        end
+
         function displayCombinedHeatmap(obj, axes)
             % Display combined masks as heatmap using faster maskStack interface
 
@@ -1455,16 +1479,64 @@ classdef DifferenceView3 < handle
             end
         end
 
-        function updateAnalysisTab(obj)
-            % Update the analysis tab with detailed analysis
-            if ~obj.App.dataLoaded
+        function createTemporalColorbar(obj, axes, numMasks)
+            % Create a colorbar with custom date ticks for temporal overlay
+            % Get date information for the masks
+            if isempty(obj.App.DifferenceClass.lastIndices) || numMasks == 0
                 return;
             end
 
-            % Use the new difference evolution display method
-            obj.displayDifferenceEvolution(obj.AnalysisAxes);
+            % Get the image array and corresponding dates
+            imageArray = obj.App.OverlayClass.imageArray;
+            maskIndices = obj.App.DifferenceClass.lastIndices;
+
+            % Extract dates for each mask
+            dates = cell(numMasks+1, 1);
+            for i = 1:numMasks+1
+                if i <= length(maskIndices) && maskIndices(i) <= length(imageArray)
+                    dates{i} = datestr(imageArray{maskIndices(i)}.id, 'mmm yyyy');
+                else
+                    dates{i} = sprintf('Mask %d', i);
+                end
+            end
+
+            % Create colorbar
+            cb = colorbar(axes);
+
+            % Set custom ticks and labels
+            cb.Ticks = linspace(1, numMasks, numMasks+1);
+            cb.TickLabels = dates;
+            cb.Label.String = 'Time Periods';
+            cb.Label.Color = 'white';
+            cb.Label.FontWeight = 'bold';
+
+            % Style the colorbar
+            cb.Color = 'white';
+            cb.FontSize = 8;
+            cb.Location = 'eastoutside';
+        end
+        function clearAxes(~, axes)
+            % Find and delete all colorbars associated with the axes
+            cb = findall(axes, 'Type', 'ColorBar');
+            delete(cb);
+
+            % Also search for colorbars in the parent figure (in case they're attached to the figure)
+            fig = ancestor(axes, 'figure');
+            if ~isempty(fig)
+                figColorBars = findall(fig, 'Type', 'ColorBar');
+                % Only delete colorbars that are associated with our axes
+                for i = 1:length(figColorBars)
+                    if isequal(figColorBars(i).Axes, axes)
+                        delete(figColorBars(i));
+                    end
+                end
+            end
+
+            % Now clear the axes as usual
+            cla(axes);
         end
 
+        %% Utility functions interacting with UI components
         function selectedIndices = getSelectedImageIndices(obj)
             % Get indices of selected images from checkboxes (like DifferenceView)
             selectedIndices = [];
@@ -1492,11 +1564,6 @@ classdef DifferenceView3 < handle
                     obj.Checkboxes(i).Value = false;
                 end
             end
-        end
-
-        function updateImageCheckboxes(obj)
-            % Legacy method - now handled by update()
-            obj.update();
         end
 
         function updateStatus(obj, message)
@@ -1534,16 +1601,6 @@ classdef DifferenceView3 < handle
             % Attach callback for dropdown selection change (like DifferenceView)
             obj.GroupDropdown.ValueChangedFcn = @(dd, evt) obj.onGroupChanged();
             obj.onGroupChanged();  % Initialize with first group
-        end
-
-
-        function setVisible(obj, visible)
-            obj.Grid.Visible = visible;
-        end
-
-        function updateData(obj)
-            % Called when new data is loaded
-            obj.update();
         end
 
         function getCurrentPresetDescription(obj)
@@ -1628,7 +1685,6 @@ classdef DifferenceView3 < handle
             end
         end
 
-        % Logarithmic area scaling helper methods
         function pixels = quadraticAreaToPixels(obj, quadValue)
             % Convert quadratic slider value to absolute pixel count
             % quadValue range: 0-sqrt(5) for min (0% to 5%), 0-sqrt(100) for max (0% to 100%)
@@ -1665,84 +1721,6 @@ classdef DifferenceView3 < handle
                 obj.AreaMinLabel.Text = sprintf('Min Area: %.3f%%', minPercent);
                 obj.AreaMaxLabel.Text = sprintf('Max Area: %.1f%%', maxPercent);
             end
-        end
-
-        % New TimeSlider-style event handlers
-        function onDisplayOptionsChanged(obj)
-            % Handle changes to image/mask display checkboxes (immediate update)
-            if obj.App.dataLoaded
-                obj.updateVisualization();
-            end
-        end
-
-        function onSigmaSliderChanged(obj)
-            % Handle changes to sigma slider for Gaussian blending
-            % Convert log slider value to actual sigma (like TimeSliderOverlay)
-            obj.sigma = 10^(obj.SigmaSlider.Value);
-
-            % Update label to show current sigma value
-            obj.SigmaLabel.Text = sprintf('Blend Amount: %.1f', obj.sigma);
-
-            % Update visualization immediately if in Individual mode
-            if obj.App.dataLoaded && strcmp(obj.currentVisualizationMode, 'Individual')
-                obj.updateVisualization();
-            end
-        end
-        function createTemporalColorbar(obj, axes, numMasks)
-            % Create a colorbar with custom date ticks for temporal overlay
-            % Get date information for the masks
-            if isempty(obj.App.DifferenceClass.lastIndices) || numMasks == 0
-                return;
-            end
-
-            % Get the image array and corresponding dates
-            imageArray = obj.App.OverlayClass.imageArray;
-            maskIndices = obj.App.DifferenceClass.lastIndices;
-
-            % Extract dates for each mask
-            dates = cell(numMasks+1, 1);
-            for i = 1:numMasks+1
-                if i <= length(maskIndices) && maskIndices(i) <= length(imageArray)
-                    dates{i} = datestr(imageArray{maskIndices(i)}.id, 'mmm yyyy');
-                else
-                    dates{i} = sprintf('Mask %d', i);
-                end
-            end
-
-            % Create colorbar
-            cb = colorbar(axes);
-
-            % Set custom ticks and labels
-            cb.Ticks = linspace(1, numMasks, numMasks+1);
-            cb.TickLabels = dates;
-            cb.Label.String = 'Time Periods';
-            cb.Label.Color = 'white';
-            cb.Label.FontWeight = 'bold';
-
-            % Style the colorbar
-            cb.Color = 'white';
-            cb.FontSize = 8;
-            cb.Location = 'eastoutside';
-        end
-        function clearAxes(~, axes)
-            % Find and delete all colorbars associated with the axes
-            cb = findall(axes, 'Type', 'ColorBar');
-            delete(cb);
-
-            % Also search for colorbars in the parent figure (in case they're attached to the figure)
-            fig = ancestor(axes, 'figure');
-            if ~isempty(fig)
-                figColorBars = findall(fig, 'Type', 'ColorBar');
-                % Only delete colorbars that are associated with our axes
-                for i = 1:length(figColorBars)
-                    if isequal(figColorBars(i).Axes, axes)
-                        delete(figColorBars(i));
-                    end
-                end
-            end
-
-            % Now clear the axes as usual
-            cla(axes);
         end
     end
 
