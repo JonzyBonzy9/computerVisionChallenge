@@ -294,7 +294,7 @@ classdef DifferenceView3 < handle
 
             obj.ChangeTypePresets.scale.medium = struct(...
                 'blockSizePixels', 1, ...         % 1 pixel block size
-                'areaMinPercent', 0.0006, ...      % 0.006% minimum (10 pixels for 1570x1064)
+                'areaMinPercent', 0.006, ...      % 0.006% minimum (10 pixels for 1570x1064)
                 'areaMaxPercent', 12.0);          % 12% maximum (200,000 pixels for 1570x1064)
 
             obj.ChangeTypePresets.scale.large = struct(...
@@ -333,7 +333,7 @@ classdef DifferenceView3 < handle
                 'areaMinPercent', 0.006, ...             % 0.006% minimum area
                 'areaMaxPercent', 3.0, ...               % 3% max area for mixed structures
                 'temporalFilter', 'fast', ...            % Fast temporal processing
-                'scale', 'medium');                      % Medium spatial scale
+                'scale', 'Custom');                      % Medium spatial scale
         end
 
         function createMainLayout(obj)
@@ -814,7 +814,9 @@ classdef DifferenceView3 < handle
                 algorithmType = obj.AlgorithmTypeDropdown.Value;
                 obj.updateParameterLabelsWithPresetInfo('Custom', scale, algorithmType);
             end
-        end        function onEnvironmentPresetChanged(obj)
+        end
+
+        function onEnvironmentPresetChanged(obj)
             % Handle environment preset selection
             preset = obj.EnvironmentPresetDropdown.Value;
 
@@ -892,7 +894,7 @@ classdef DifferenceView3 < handle
                 obj.isUpdatingPreset = true;
 
                 % Start with current slider values as base (block size now in pixels, areas in quadratic scale)
-                blockSizePixels = obj.BlockSizeSlider.Value;    % Now absolute pixels (1-100)
+                blockSizePixels = obj.BlockSizeSlider.Value;    % absolute pixels (1-100)
                 areaMinQuadValue = obj.AreaMinSlider.Value;     % Quadratic scale
                 areaMaxQuadValue = obj.AreaMaxSlider.Value;     % Quadratic scale
 
