@@ -294,7 +294,7 @@ classdef DifferenceView3 < handle
 
             obj.ChangeTypePresets.scale.medium = struct(...
                 'blockSizePixels', 1, ...         % 1 pixel block size
-                'areaMinPercent', 0.0006, ...      % 0.006% minimum (10 pixels for 1570x1064)
+                'areaMinPercent', 0.006, ...      % 0.006% minimum (10 pixels for 1570x1064)
                 'areaMaxPercent', 12.0);          % 12% maximum (200,000 pixels for 1570x1064)
 
             obj.ChangeTypePresets.scale.large = struct(...
@@ -308,10 +308,10 @@ classdef DifferenceView3 < handle
 
             % Urban preset: optimized for built environments with geometric structures
             obj.EnvironmentPresets.urban = struct(...
-                'algorithm', 'ABS+GRAD+PCA(50/20/30)', ...         % Gradient + edge detection for buildings
+                'algorithm', 'GRAD+EDGE(70/30)', ...         % Gradient + edge detection for buildings
                 'threshold', 0.2, ...                    % 0.2 threshold for clear changes
                 'blockSize', 1, ...                      % 1 pixel block size for fine detail
-                'areaMinPercent', 0.0006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
+                'areaMinPercent', 0.006, ...             % 0.006% minimum area (100 pixels for 1570x1064)
                 'areaMaxPercent', 12.0, ...              % 12% max area for large structures
                 'temporalFilter', 'fast', ...            % Fast temporal processing for urban changes
                 'scale', 'medium');                      % Medium spatial scale

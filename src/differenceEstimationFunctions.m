@@ -29,7 +29,7 @@ classdef differenceEstimationFunctions < handle
 
     properties (Constant)
         % define value ranges etc
-        valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution', 'ABS+GRAD+PCA(50/20/30)', 'SSIM+GRAD(50/50)', 'GRAD+EDGE(70/30)', 'ABS+GRAD+SSIM(40/30/30)', };
+        valid_methods = {'absdiff','gradient','ssim','dog','pca','texture_change','edge_evolution', 'ABS+EDGE', 'ABS+GRAD+PCA(50/20/30)', 'SSIM+GRAD(50/50)', 'GRAD+EDGE(70/30)', 'ABS+GRAD+SSIM(40/30/30)', };
         valid_change_types = {'urban', 'natural', 'mixed'};
         valid_visualization_types = {'heatmap', 'temporal overlay', 'max', 'sum', 'average'};
         value_range_threshold = [0, 1];
@@ -104,8 +104,6 @@ classdef differenceEstimationFunctions < handle
                         mask = differenceEstimationFunctions.detectChange_DoG(I1, I2, threshold, true);
                     case 'pca'
                         mask = differenceEstimationFunctions.detectChange_pca(I1, I2, threshold, true);
-                    case 'temporal_analysis'
-                        mask = differenceEstimationFunctions.detectChange_temporal(filteredImages, i, threshold, true);
                     case 'texture_change'
                         mask = differenceEstimationFunctions.detectChange_texture(I1, I2, threshold, true);
                     case 'edge_evolution'
@@ -276,93 +274,113 @@ classdef differenceEstimationFunctions < handle
 
 
         % ===== Absolute Difference =====
-        function mask = detectChange_absdiff(I1, I2, threshold)
-            diffImage = imabsdiff(I1, I2);
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(diffImage);
-            end
-            mask = imbinarize(diffImage, threshold);
+        function mask = detectChange_absdiff(I1, I2)
+            mask = imabsdiff(I1, I2);
         end
 
         % ===== Gradient Difference =====
-        function mask = detectChange_gradient(I1, I2, threshold)
+        function mask = detectChange_gradient(I1, I2)
             [Gx1, Gy1] = imgradientxy(I1);
             [Gx2, Gy2] = imgradientxy(I2);
-            gradDiff = abs(Gx1 - Gx2) + abs(Gy1 - Gy2);
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(gradDiff);
-            end
-            mask = imbinarize(gradDiff, threshold);
+            mask = abs(Gx1 - Gx2) + abs(Gy1 - Gy2);
         end
 
         % ===== SSIM Difference =====
-        function mask = detectChange_ssim(I1, I2, threshold)
+        function mask = detectChange_ssim(I1, I2)
             [~, ssimMap] = ssim(I1, I2);
-            diffMap = 1 - ssimMap;
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(diffMap);
-            end
-            mask = imbinarize(diffMap, threshold);
+            mask = 1 - ssimMap;
         end
 
         % ===== Difference of Gaussians =====
-        function mask = detectChange_DoG(I1, I2, threshold)
+        function mask = detectChange_DoG(I1, I2)
             I1_DoG = imgaussfilt(I1, 1) - imgaussfilt(I1, 2);
             I2_DoG = imgaussfilt(I2, 1) - imgaussfilt(I2, 2);
-            dogDiff = imabsdiff(I1_DoG, I2_DoG);
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(dogDiff);
-            end
-            mask = imbinarize(dogDiff, threshold);
+            mask = imabsdiff(I1_DoG, I2_DoG);
         end
 
         % ===== PCA-Based Change Detection =====
-        function mask = detectChange_pca(I1, I2, threshold)
+        function mask = detectChange_pca(I1, I2)
             [rows, cols] = size(I1);
             X = [I1(:), I2(:)];
             [~, score, ~] = pca(X);
-            pc1 = reshape(score(:,1), rows, cols);
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(pc1);
-            end
-            mask = imbinarize(pc1, threshold);
+            mask = reshape(score(:,1), rows, cols);
         end
 
         % ===== Texture Change Detection =====
-        function mask = detectChange_texture(I1, I2, threshold)
+        function mask = detectChange_texture(I1, I2)
             % Calculate Local Binary Pattern (LBP) for texture analysis
             lbp1 = differenceEstimationFunctions.calculateLBP(I1);
             lbp2 = differenceEstimationFunctions.calculateLBP(I2);
 
-            textureDiff = abs(lbp1 - lbp2);
-
-            if nargin < 3 || isnan(threshold)
-                threshold = graythresh(textureDiff);
-            end
-            mask = imbinarize(textureDiff, threshold);
+            mask = abs(lbp1 - lbp2);
         end
 
         % ===== Edge Evolution Detection =====
-        function mask = detectChange_edge(I1, I2, threshold)
-            % Detect edges and analyze their evolution
-            edges1 = edge(I1, 'Canny');
-            edges2 = edge(I2, 'Canny');
+        function mask = detectChange_edge(I1, I2)
+            % Detect edges and analyze their evolution with noise tolerance
 
-            % Calculate edge change: new edges + disappeared edges
-            edgeChange = (edges2 & ~edges1) | (edges1 & ~edges2);
+            % Apply slight gaussian blur to reduce noise before edge detection
+            % I1_smooth = imgaussfilt(I1, 0.1);
+            % I2_smooth = imgaussfilt(I2, 0.1);
 
-            % Apply morphological operations to connect nearby edge changes
-            se = strel('disk', 2);
-            edgeChange = imclose(edgeChange, se);
+            % Detect edges with adjusted sensitivity
+            edges1 = edge(I1, 'Canny', [0.05, 0.15]);
+            edges2 = edge(I2, 'Canny', [0.05, 0.15]);
 
-            if nargin < 3 || isnan(threshold)
-                % For edge detection, threshold represents minimum change area
-                if isnan(threshold), threshold = 0.01; end
-            end
+            % Method 1: Distance-based edge matching (more robust)
+            % Create distance transforms to find nearby edges
+            dist1 = bwdist(edges1);
+            dist2 = bwdist(edges2);
+
+            % Tolerance for edge matching (pixels)
+            tolerance = 10;
+
+            % Find edges that don't have a corresponding edge within tolerance
+            new_edges = edges2 & (dist1 > tolerance);
+            disappeared_edges = edges1 & (dist2 > tolerance);
+
+            % Combine significant edge changes
+            edgeChange = new_edges | disappeared_edges;
+
+            % Method 2: Alternative - Edge density comparison for very noisy areas
+            % Calculate local edge density in neighborhoods
+            % se_density = strel('disk', 5);
+            % density1 = imfilter(double(edges1), double(se_density.Neighborhood), 'same') / sum(se_density.Neighborhood(:));
+            % density2 = imfilter(double(edges2), double(se_density.Neighborhood), 'same') / sum(se_density.Neighborhood(:));
+
+            % Significant density changes indicate real structural changes
+            % densityChange = abs(density1 - density2) > 0.15;
+
+            % figure()
+            % imshow(densityChange);
+
+            % Combine both methods: use density change for very noisy areas
+            % Use edge-based method for cleaner areas
+            % noiseLevel1 = imfilter(double(edges1), ones(3,3)/9, 'same');
+            % noiseLevel2 = imfilter(double(edges2), ones(3,3)/9, 'same');
+            % noisyAreas = (noiseLevel1 + noiseLevel2) > 0.3;
+
+            % figure()
+            % imshow(noisyAreas);
+
+            % In noisy areas, prefer density-based detection
+            % edgeChange(noisyAreas) = densityChange(noisyAreas);
+
+            % figure()
+            % imshow(edgeChange);
+
+            % Remove small isolated edge changes (likely noise)
+            % edgeChange = bwareaopen(edgeChange, 20);
+
+            % Apply morphological operations to connect nearby significant changes
+            % se = strel('square', 2);
+            % edgeChange = imclose(edgeChange, se);
+
+            % Final cleanup: remove very small components again
+            edgeChange = bwareaopen(edgeChange, 30);
 
             % Convert to double for thresholding
-            edgeChangeDouble = im2double(edgeChange);
-            mask = edgeChangeDouble > threshold;
+            mask = im2double(edgeChange);
         end
 
         % ===== Helper function for LBP calculation =====
@@ -486,27 +504,26 @@ classdef differenceEstimationFunctions < handle
                     % Calculate mask for this method
                     switch lower(currentMethod)
                         case 'absdiff'
-                            mask = differenceEstimationFunctions.detectChange_absdiff(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_absdiff(I1_proc, I2_proc);
                         case 'gradient'
-                            mask = differenceEstimationFunctions.detectChange_gradient(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_gradient(I1_proc, I2_proc);
                         case 'ssim'
-                            mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_ssim(I1_proc, I2_proc);
                         case 'dog'
-                            mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_DoG(I1_proc, I2_proc);
                         case 'pca'
-                            mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc, obj.threshold);
-                        case 'temporal_analysis'
-                            mask = differenceEstimationFunctions.detectChange_temporal(filteredImages, i, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_pca(I1_proc, I2_proc);
                         case 'texture_change'
-                            mask = differenceEstimationFunctions.detectChange_texture(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_texture(I1_proc, I2_proc);
                         case 'edge_evolution'
-                            mask = differenceEstimationFunctions.detectChange_edge(I1_proc, I2_proc, obj.threshold);
+                            mask = differenceEstimationFunctions.detectChange_edge(I1_proc, I2_proc);
                         otherwise
                             error('Unknown method "%s"', currentMethod);
                     end
                     % Resize mask to match original image size
                     mask = imresize(mask, size(filteredMasks{i}), 'nearest');
-                    pairMasks{methodIdx} = double(mask) * weight;
+                    pairMasks{methodIdx} = double(mask) * weight; % Apply method weight to mask
+                    dispFunc(sprintf('class: %s', class(mask)));
                 end
 
                 % Combine multiple methods if used
@@ -518,17 +535,20 @@ classdef differenceEstimationFunctions < handle
                     for methodIdx = 1:length(pairMasks)
                         weightedSum = weightedSum + pairMasks{methodIdx};
                     end
-                    % reapply boolean threshold
-                    combinedMask = weightedSum > (sum(methodWeights) * 0.5);
+                    % Keep as double, limit to [0,1] range
+                    combinedMask = min(max(weightedSum, 0), 1); % Proper clipping to [0,1] range
                 end
 
                 % Apply intersection with valid regions
-                combinedMask = combinedMask & preprocessedMasks{i} & preprocessedMasks{i+1};
-
-                rawMasks{i} = combinedMask;
+                rawMasks{i} = combinedMask .* double(preprocessedMasks{i}) .* double(preprocessedMasks{i+1});
+                dispFunc(sprintf('class: %s', class(rawMasks{i})));
             end
 
             dispFunc('Initial masks calculated, proceeding with postprocessing...');
+
+            for i = 1:length(rawMasks)
+                rawMasks{i} = imbinarize(rawMasks{i}, obj.threshold);
+            end
 
             % === STEP 4: Apply Area Filtering based on Scale ===
             for i = 1:length(rawMasks)
@@ -540,15 +560,21 @@ classdef differenceEstimationFunctions < handle
 
             obj.createImageStack();
             obj.resultAvailable = true;
+            dispFunc("Completed succesfully!");
         end
 
         function [methods, methodWeights] = determineTypeParameters(obj, type)
             % Determine detection methods and parameters based on environment type
 
             switch type
+                case 'ABS+EDGE'
+                    methods = {'absdiff', 'edge_evolution'};
+                    methodWeights = [1, 1];
+
                 case 'ABS+GRAD+PCA(50/20/30)'
                     methods = {'absdiff', 'gradient', 'pca'};
                     methodWeights = [0.5, 0.2, 0.3]; % Primary: absolute difference, Secondary: gradient and PCA
+
                 case 'GRAD+EDGE(70/30)'
                     % Urban environments: emphasize geometric structures and edges
                     methods = {'gradient', 'edge_evolution'};
